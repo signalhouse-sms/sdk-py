@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "signalhouse"
+version = "1.5.1"
+description = "Deprecated: moved to signalhouse-sms. Installs signalhouse-sms and re-exports it."
+readme = "README.md"
+license = {text = "MIT"}
+requires-python = ">=3.10"
+authors = [
+    {name = "SignalHouse LLC", email = "support@signalhouse.io"},
+]
+dependencies = [
+    "signalhouse-sms==1.5.1",
+]
+
+[project.urls]
+Homepage = "https://github.com/signalhouse-sms/sdk-py"
+Documentation = "https://v2app.signalhouse.io/docs"
+Repository = "https://github.com/signalhouse-sms/sdk-py"
+
+[tool.setuptools]
+packages = ["signalhouse"]

@@ -1,0 +1,9 @@
+# Keep the sdist to the runtime package; setuptools adds tests/test_*.py by default.
+prune tests
+prune python-documentation
+prune legacy
+prune ci
+prune .github
+prune scripts
+exclude LEGACY_*.md requirements.txt MANIFEST.in
+global-exclude __pycache__ *.py[cod]

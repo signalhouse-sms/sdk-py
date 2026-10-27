@@ -1,0 +1,22 @@
+{
+  "source": "agent-skills",
+  "ref": "v0.3.0",
+  "skills": [
+    "signalhouse-10dlc",
+    "signalhouse-advisor",
+    "signalhouse-numbers",
+    "signalhouse-setup",
+    "signalhouse-sms",
+    "signalhouse-webhooks"
+  ],
+  "files": {
+    "signalhouse-10dlc/SKILL.md": "6a46fddf1572b39849c07855c6ece3d3499c711e5ffa6f466d73ab54182fd49f",
+    "signalhouse-10dlc/examples/brightsmile-onboarding.md": "b5c04a551bc918f2563f1d1e59e516cf2e60fa7233490e3312a92dd1d1e9d473",
+    "signalhouse-10dlc/references/tcr-rejection-causes.md": "312d754c55dfdf8e21d085724728ae4b2288d7b485fba1c61c78f94a42780e8c",
+    "signalhouse-advisor/SKILL.md": "5e5070dc4742a1fe0195989471f809170c30fd7d8f63c33e4778215a2a446146",
+    "signalhouse-numbers/SKILL.md": "f996be53809ea2f90e49b32452f162eeff5369056e1f63e422b8fdb46d2896ff",
+    "signalhouse-setup/SKILL.md": "ca87a6d71f3f82614b83ad283971385fc55c13c097b76595b1b85def235373ec",
+    "signalhouse-sms/SKILL.md": "ec7ed8985ad590b0ab5d40c9ddb003eb8cbc566a1309ac5e330f570e0404ec42",
+    "signalhouse-webhooks/SKILL.md": "d16062e9e0a7cdda3c02aee485bd5114659405d00b1d635da1280db0179490a7"
+  }
+}
