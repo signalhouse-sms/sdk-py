@@ -8,6 +8,8 @@
 
 Python SDK for the SignalHouse API. Manage SMS/MMS messaging, phone numbers, 10DLC brands & campaigns, billing, and more.
 
+Full API reference and guides: https://app2.signalhouse.io/docs
+
 ## Installation
 
 ```bash

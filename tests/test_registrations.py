@@ -300,17 +300,17 @@ class BusinessVerificationContracts(unittest.TestCase):
         self.client = CaptureClient()
         self.domain = load_domain("brands").Brands(self.client)
 
-    def test_get_business_verification_encodes_the_group(self):
-        """The read is a GET on the group's encoded path with no body."""
-        self.domain.get_business_verification("G0000001/x", token="session")
+    def test_get_business_verifications_encodes_the_group(self):
+        """The list is a GET on the group's encoded path with no body."""
+        self.domain.get_business_verifications("G0000001/x", token="session")
         path, request = self.client.calls[-1]
         self.assertEqual(path, "/brand/business-verification/G0000001%2Fx")
         self.assertEqual(request["method"], "GET")
         self.assertNotIn("body", request)
         self.assertEqual(request["token"], "session")
 
-    def test_submit_business_verification_puts_the_details(self):
-        """The submit sends the details unchanged as the PUT body and forwards the idempotency key."""
+    def test_create_business_verification_posts_the_details(self):
+        """The create sends the details unchanged as the POST body and forwards the idempotency key."""
         details = {
             "businessName": "Acme Inc", "businessType": "CORPORATION", "industry": "RETAIL",
             "registrationType": "EIN", "registrationNumber": "12-3456789", "website": "https://acme.example",
@@ -320,21 +320,54 @@ class BusinessVerificationContracts(unittest.TestCase):
                 "jobTitle": "Owner", "jobLevel": "CEO",
             },
         }
-        self.domain.submit_business_verification("G0000001", details, idempotency_key="key-1")
+        self.domain.create_business_verification("G0000001", details, idempotency_key="key-1")
         path, request = self.client.calls[-1]
         self.assertEqual(path, "/brand/business-verification/G0000001")
+        self.assertEqual(request["method"], "POST")
+        self.assertEqual(request["body"], details)
+        self.assertEqual(request["idempotency_key"], "key-1")
+
+    def test_get_business_verification_reads_one_by_its_id(self):
+        """The read is a GET on the group's and the business verification's encoded path with no body."""
+        self.domain.get_business_verification("G0000001/x", "BV1/2", token="session")
+        path, request = self.client.calls[-1]
+        self.assertEqual(path, "/brand/business-verification/G0000001%2Fx/BV1%2F2")
+        self.assertEqual(request["method"], "GET")
+        self.assertNotIn("body", request)
+        self.assertEqual(request["token"], "session")
+
+    def test_update_business_verification_puts_the_details(self):
+        """The update sends the details unchanged as the PUT body on the business verification's path."""
+        details = {"businessName": "Acme Inc", "registrationType": "EIN", "registrationNumber": "12-3456789"}
+        self.domain.update_business_verification("G0000001", "BV1/2", details, idempotency_key="key-1")
+        path, request = self.client.calls[-1]
+        self.assertEqual(path, "/brand/business-verification/G0000001/BV1%2F2")
         self.assertEqual(request["method"], "PUT")
         self.assertEqual(request["body"], details)
         self.assertEqual(request["idempotency_key"], "key-1")
 
-    def test_business_verification_requires_the_group_and_details(self):
+    def test_business_verification_requires_the_group_id_and_details(self):
         with self.assertRaises(ValueError):
-            self.domain.get_business_verification("")
+            self.domain.get_business_verifications("")
         with self.assertRaises(ValueError):
-            self.domain.submit_business_verification("", {"businessName": "Acme Inc"})
+            self.domain.create_business_verification("", {"businessName": "Acme Inc"})
         with self.assertRaises(ValueError):
-            self.domain.submit_business_verification("G0000001", None)
+            self.domain.create_business_verification("G0000001", None)
+        with self.assertRaises(ValueError):
+            self.domain.get_business_verification("", "BV1")
+        with self.assertRaises(ValueError):
+            self.domain.get_business_verification("G0000001", "")
+        with self.assertRaises(ValueError):
+            self.domain.update_business_verification("", "BV1", {"businessName": "Acme Inc"})
+        with self.assertRaises(ValueError):
+            self.domain.update_business_verification("G0000001", "", {"businessName": "Acme Inc"})
+        with self.assertRaises(ValueError):
+            self.domain.update_business_verification("G0000001", "BV1", None)
         self.assertEqual(self.client.calls, [])
+
+    def test_submit_business_verification_is_gone(self):
+        """create_business_verification and update_business_verification replace it."""
+        self.assertFalse(hasattr(self.domain, "submit_business_verification"))
 
 
 class SubgroupBusinessVerificationContracts(unittest.TestCase):
@@ -342,9 +375,9 @@ class SubgroupBusinessVerificationContracts(unittest.TestCase):
         self.client = CaptureClient()
         self.domain = load_domain("brands").Brands(self.client)
 
-    def test_get_business_verification_sends_the_subgroup_as_a_query(self):
-        """A given subgroup goes, encoded, into the subgroupId query parameter of the read."""
-        self.domain.get_business_verification("G0000001", subgroup_id="S0000001/x", token="session")
+    def test_get_business_verifications_sends_the_subgroup_as_a_query(self):
+        """A given subgroup goes, encoded, into the subgroupId query parameter of the list."""
+        self.domain.get_business_verifications("G0000001", subgroup_id="S0000001/x", token="session")
         path, request = self.client.calls[-1]
         self.assertEqual(urlsplit(path).path, "/brand/business-verification/G0000001")
         self.assertEqual(urlsplit(path).query, "subgroupId=S0000001%2Fx")
@@ -352,20 +385,20 @@ class SubgroupBusinessVerificationContracts(unittest.TestCase):
         self.assertNotIn("body", request)
         self.assertEqual(request["token"], "session")
 
-    def test_submit_business_verification_sends_the_subgroup_as_a_query(self):
+    def test_create_business_verification_sends_the_subgroup_as_a_query(self):
         """A given subgroup goes into the query, never the body, and the idempotency key is forwarded."""
         details = {"businessName": "Acme Inc", "country": "US"}
-        self.domain.submit_business_verification("G0000001", details, subgroup_id="S0000001", idempotency_key="key-1")
+        self.domain.create_business_verification("G0000001", details, subgroup_id="S0000001", idempotency_key="key-1")
         path, request = self.client.calls[-1]
         self.assertEqual(path, "/brand/business-verification/G0000001?subgroupId=S0000001")
-        self.assertEqual(request["method"], "PUT")
+        self.assertEqual(request["method"], "POST")
         self.assertEqual(request["body"], {"businessName": "Acme Inc", "country": "US"})
         self.assertEqual(request["idempotency_key"], "key-1")
 
     def test_business_verification_urls_are_unchanged_without_a_subgroup(self):
         """Without a subgroup neither method adds a query string."""
-        self.domain.get_business_verification("G0000001")
-        self.domain.submit_business_verification("G0000001", {"businessName": "Acme Inc"})
+        self.domain.get_business_verifications("G0000001")
+        self.domain.create_business_verification("G0000001", {"businessName": "Acme Inc"})
         self.assertEqual([path for path, _ in self.client.calls], ["/brand/business-verification/G0000001"] * 2)
 
 

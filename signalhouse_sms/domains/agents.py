@@ -912,6 +912,161 @@ class Agents:
             idempotency_key=idempotency_key,
         )
 
+    def get_agent_contact_pauses(
+        self,
+        *,
+        group_id: str,
+        subgroup_id: str | None = None,
+        channel: str | None = None,
+        endpoint_value: str | None = None,
+        contact_identifier: str | None = None,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """List paused agent conversations in a group, newest first.
+
+        A paused conversation is one a person took over; the agent stays out of
+        it until it is resumed.
+
+        Allowed roles: api, admin, developer, billing, user.
+
+        Args:
+            group_id: The group whose paused conversations to list (required).
+            subgroup_id: Narrow to one subgroup.
+            channel: Narrow to one channel ("sms").
+            endpoint_value: Narrow to one agent number (digits only, no "+").
+            contact_identifier: Narrow to one contact number (digits only, no "+").
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is a list of pauses, newest
+            first. Each pause carries groupId, subgroupId, channel,
+            endpointValue, contactIdentifier, reason ("human_reply", "escalation" or
+            "manual"), pausedBy, createdAt, and updatedAt.
+
+        Raises:
+            SignalHouseValidationError: If group_id is missing.
+        """
+        self._sdk._require({"groupId": group_id})
+        query_string = self._sdk._get_query_string({
+            "groupId": group_id,
+            "subgroupId": subgroup_id,
+            "channel": channel,
+            "endpointValue": endpoint_value,
+            "contactIdentifier": contact_identifier,
+        })
+        return self._sdk._request(
+            f"/agent/pauses{query_string}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def pause_agent_conversation(
+        self,
+        channel: str,
+        endpoint_value: str,
+        contact_identifier: str,
+        pause_data: dict[str, Any] | None = None,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Pause an agent on one conversation (its number + one contact).
+
+        The agent stops answering that contact on that number until the
+        conversation is resumed; there is no timer. The conversation's pending
+        replies are rejected. Pausing a paused conversation keeps the original
+        pause.
+
+        Allowed roles: api, admin, developer, billing, user.
+
+        Args:
+            channel: The channel; must be "sms".
+            endpoint_value: The agent's number: 10 to 15 digits, country code
+                included, no "+".
+            contact_identifier: The contact's number: 10 to 15 digits, country
+                code included, no "+".
+            pause_data: Optional {"reason": ...}: "human_reply" or "manual" (the
+                default). Sent as an empty object when omitted.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with the pause.
+
+        Raises:
+            SignalHouseValidationError: If channel, endpoint_value, or contact_identifier is missing.
+        """
+        self._sdk._require({
+            "channel": channel,
+            "endpointValue": endpoint_value,
+            "contactIdentifier": contact_identifier,
+        })
+        safe_channel = quote(str(channel), safe="")
+        safe_endpoint_value = quote(str(endpoint_value), safe="")
+        safe_contact_identifier = quote(str(contact_identifier), safe="")
+        return self._sdk._request(
+            f"/agent/pauses/{safe_channel}/{safe_endpoint_value}/{safe_contact_identifier}",
+            method="PUT",
+            body=pause_data if pause_data is not None else {},
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def resume_agent_conversation(
+        self,
+        channel: str,
+        endpoint_value: str,
+        contact_identifier: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Resume an agent on a paused conversation, so it answers the contact's next text again.
+
+        Allowed roles: api, admin, developer, billing, user.
+
+        Args:
+            channel: The channel; must be "sms".
+            endpoint_value: The agent's number: 10 to 15 digits, country code
+                included, no "+".
+            contact_identifier: The contact's number: 10 to 15 digits, country
+                code included, no "+".
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with the removed pause.
+
+        Raises:
+            SignalHouseValidationError: If channel, endpoint_value, or contact_identifier is missing.
+        """
+        self._sdk._require({
+            "channel": channel,
+            "endpointValue": endpoint_value,
+            "contactIdentifier": contact_identifier,
+        })
+        safe_channel = quote(str(channel), safe="")
+        safe_endpoint_value = quote(str(endpoint_value), safe="")
+        safe_contact_identifier = quote(str(contact_identifier), safe="")
+        return self._sdk._request(
+            f"/agent/pauses/{safe_channel}/{safe_endpoint_value}/{safe_contact_identifier}",
+            method="DELETE",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
     def get_agent_reply_drafts(
         self,
         *,

@@ -66,6 +66,7 @@ class NumbersAdmin:
         self,
         porting_id: str,
         *,
+        sub_group_id: str | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -74,6 +75,8 @@ class NumbersAdmin:
 
         Args:
             porting_id: The ID of the port-in request to approve.
+            sub_group_id: Subgroup to assign when the request has none yet. Ignored if the
+                request already has a subgroup assigned -- an existing assignment is never overwritten.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -86,9 +89,11 @@ class NumbersAdmin:
         """
         self._sdk._require({"portingId": porting_id})
         safe_porting_id = quote(str(porting_id), safe="")
+        body = {"subGroupId": sub_group_id} if sub_group_id is not None else None
         return self._sdk._request(
             f"/number/portin/{safe_porting_id}/approve",
             method="POST",
+            body=body,
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,
