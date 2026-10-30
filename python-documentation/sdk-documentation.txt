@@ -93,6 +93,63 @@ AUTH  (signal_house.auth)
       token=None, headers=None)
     Get token login history.
 
+  get_oauth_authorization_url(provider, next=None, email=None,
+      link_ticket=None, reauth_ticket=None)
+    Build the URL that starts an OAuth sign-in (a browser redirect, not an
+    API call). provider: "google", "microsoft", "apple" or "sso" (Enterprise
+    SSO; requires email). link_ticket (from create_oauth_link) links the
+    provider to the signed-in account instead; the API then returns the user
+    to /Settings/Security with a pendingLink to pass to confirm_oauth_link.
+    reauth_ticket (from create_oauth_reauth) signs the account in again to
+    confirm it's them ("sso" needs no email then).
+    Query keys: email, linkTicket, reauthTicket, next (only those set).
+
+  get_oauth_links(*, token=None, headers=None)
+    List the caller's sign-in methods. Sends a GET to /auth/oauth/links.
+    Returns {"passwordKnown": bool, "links": [{"provider", "email",
+    "linkedAt", "lastLoginAt"}]}.
+
+  create_oauth_link(provider, *, token=None, headers=None)
+    Start linking "google", "microsoft" or "apple" to the caller's account.
+    Sends a POST to /auth/oauth/:provider/link. Requires (and spends) a fresh
+    confirm_two_factor_identity. Returns {"linkTicket", "expiresInSeconds"};
+    pass the ticket to get_oauth_authorization_url(provider, link_ticket=...).
+
+  create_oauth_reauth(provider, *, token=None, headers=None)
+    Start signing in again with a provider linked to the caller's account, to
+    confirm it's them. Sends a POST to /auth/oauth/:provider/reauth
+    ("google", "microsoft", "apple" or "sso"). Spends nothing. Returns
+    {"reauthTicket", "reauthSecret", "expiresInSeconds"} (keep reauthSecret for the confirm call); pass the ticket to
+    get_oauth_authorization_url(provider, reauth_ticket=...). The browser
+    comes back to /Settings/Security with a single-use pendingReauth (the session that
+    started it redeems it with confirm_oauth_reauth) or reauthError.
+
+  confirm_oauth_reauth(pending_reauth, reauth_secret, *, token=None,
+      headers=None)
+    Finish signing in again with a linked provider. Sends a POST to
+    /auth/oauth/reauth/confirm with { pendingReauth, reauthSecret }. pendingReauth
+    is the
+    single-use value (valid 5 minutes) the create_oauth_reauth round trip returns
+    to /Settings/Security with. It counts only for the same account and
+    session that started it; 400 when expired or used, 403 for another
+    account or session. reauthSecret is the value the create call returned;
+    a wrong or missing secret is refused (403) and uses up the re-sign-in.
+    Returns: { identityConfirmed } (true when 2FA is off, so it counts as a
+    confirmed identity).
+
+  confirm_oauth_link(pending_link, *, token=None, headers=None)
+    Finish linking a provider. Sends a POST to /auth/oauth/links/confirm with
+    {"pendingLink"}. The provider round trip started with create_oauth_link
+    returns the browser to /Settings/Security?pendingLink=...; this links it,
+    but only for the account the link was started for. Returns the caller's
+    {"passwordKnown", "links"}.
+
+  delete_oauth_link(provider, *, token=None, headers=None)
+    Unlink "google", "microsoft", "apple" or "sso" from the caller's account.
+    Sends a DELETE to /auth/oauth/:provider/link. Requires a fresh
+    confirm_two_factor_identity. 400 when it is the account's only sign-in
+    method. Returns the remaining {"passwordKnown", "links"}.
+
 
 BILLING  (signal_house.billing)
 --------------------------------------------------------------------------------
@@ -275,6 +332,35 @@ GROUPS  (signal_house.groups)
 
   update_group(id, group_data, *, token=None, headers=None)
     Update group information.
+
+  Enterprise SSO (role admin). Each returns {"groupId", "available",
+  "callbackUrl", "connection", "domains"}.
+
+  get_sso_configuration(group_id, *, token=None, headers=None)
+    Get a group's SSO configuration. Sends a GET to /group/sso?groupId=...
+
+  save_sso_connection(group_id, issuer, client_id, client_secret=None,
+      enabled=None, *, token=None, headers=None)
+    Create or update a group's OpenID Connect identity provider. Sends a PUT
+    to /group/sso. client_secret is required the first time; omit it to keep
+    the saved one. Requires a fresh auth.confirm_two_factor_identity.
+
+  delete_sso_connection(group_id, *, token=None, headers=None)
+    Remove a group's identity provider and its domains, unlinking every
+    account that signed in through it. Sends a DELETE to
+    /group/sso?groupId=... Requires a fresh auth.confirm_two_factor_identity.
+
+  add_sso_domain(group_id, domain, *, token=None, headers=None)
+    Claim an email domain; the response includes the DNS TXT record that
+    verifies it. Sends a POST to /group/sso/domains.
+
+  verify_sso_domain(group_id, domain, *, token=None, headers=None)
+    Verify a claimed domain by its DNS TXT record. Sends a POST to
+    /group/sso/domains/:domain/verify.
+
+  remove_sso_domain(group_id, domain, *, token=None, headers=None)
+    Remove a domain from the group's SSO. Sends a DELETE to
+    /group/sso/domains/:domain?groupId=...
 
 
 LANDINGS  (signal_house.landings)

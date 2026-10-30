@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "signalhouse"
-version = "1.6.0"
+version = "1.7.0"
 description = "Deprecated: moved to signalhouse-sms. Installs signalhouse-sms and re-exports it."
 readme = "README.md"
 license = {text = "MIT"}
@@ -13,7 +13,7 @@ authors = [
     {name = "SignalHouse LLC", email = "support@signalhouse.io"},
 ]
 dependencies = [
-    "signalhouse-sms==1.6.0",
+    "signalhouse-sms==1.7.0",
 ]
 
 [project.urls]
