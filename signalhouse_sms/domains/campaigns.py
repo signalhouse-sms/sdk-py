@@ -334,6 +334,41 @@ class Campaigns:
             idempotency_key=idempotency_key,
         )
 
+    def get_group_throughput_usage(
+        self,
+        *,
+        group_id: str,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Get today's T-Mobile usage against the daily limit for every active campaign in a group that has one.
+
+        The same limits and counter as get_campaign_throughput_limits, for the whole group in one call.
+
+        Args:
+            group_id: The group identifier.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with a list: [{ campaignId, brandId, brandName, usecase, tmobile: { tier, dailyLimit, usedToday: { date, segments, resetsAt } } }].
+            Campaigns without a T-Mobile limit (unverified brand, GOVERNMENT entity, PUBLIC_SAFETY_RESTRICTED usecase) are left out. The counter is per brand EIN and UTC day, so every campaign of a brand shows the same usage; a LOW_VOLUME campaign's limit is 2,000 whatever the brand's score.
+
+        Raises:
+            SignalHouseValidationError: If group_id is missing.
+        """
+        self._sdk._require({"groupId": group_id})
+        query_string = self._sdk._get_query_string({"groupId": group_id})
+        return self._sdk._request(
+            f"/campaign/throughput-usage{query_string}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
     def create_campaign(
         self,
         campaign_data: dict[str, Any],

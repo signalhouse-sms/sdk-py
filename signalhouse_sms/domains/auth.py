@@ -486,7 +486,8 @@ class Auth:
         provider_error).
 
         Args:
-            provider: "google", "microsoft", "apple" or "sso"; must be linked to the account.
+            provider: "microsoft", "apple" or "sso"; must be linked to the account. Google is
+                refused with a 400 because it can't confirm a fresh sign-in; confirm with a code instead.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -601,7 +602,7 @@ class Auth:
     ) -> dict[str, Any]:
         """Unlink a provider from the caller's account.
 
-        Refused (400) when it is the account's only way to sign in. Requires a fresh
+        Refused (400) when it is the account's only way to sign in. With 2FA on and no password, the last linked Microsoft, Apple or SSO sign-in is refused (400) too. Requires a fresh
         confirm_two_factor_identity from the same session.
 
         Args:

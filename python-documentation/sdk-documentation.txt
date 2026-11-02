@@ -118,7 +118,7 @@ AUTH  (signal_house.auth)
   create_oauth_reauth(provider, *, token=None, headers=None)
     Start signing in again with a provider linked to the caller's account, to
     confirm it's them. Sends a POST to /auth/oauth/:provider/reauth
-    ("google", "microsoft", "apple" or "sso"). Spends nothing. Returns
+    ("microsoft", "apple" or "sso"; Google is refused with 400). Spends nothing. Returns
     {"reauthTicket", "reauthSecret", "expiresInSeconds"} (keep reauthSecret for the confirm call); pass the ticket to
     get_oauth_authorization_url(provider, reauth_ticket=...). The browser
     comes back to /Settings/Security with a single-use pendingReauth (the session that
