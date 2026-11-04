@@ -476,6 +476,42 @@ class Templates:
             idempotency_key=idempotency_key,
         )
 
+    def geocode_address(
+        self,
+        *,
+        group_id: str,
+        address: str,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Resolve an address to coordinates for a VIEW_LOCATION suggestion.
+
+        Args:
+            group_id: The group asking.
+            address: The address to resolve (1-512 characters).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is {address, latitude, longitude, partialMatch}. 400 with code
+            LOCATION_NOT_FOUND when nothing matches; 429 past the group's lookup window; 503 when the server has no
+            geocoding provider.
+
+        Raises:
+            SignalHouseValidationError: If group_id or address is missing.
+        """
+        self._sdk._require({"groupId": group_id, "address": address})
+        query_string = self._sdk._get_query_string({"groupId": group_id, "address": address})
+        return self._sdk._request(
+            f"/template/geocode{query_string}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
     def upload_media(
         self,
         *,

@@ -295,111 +295,53 @@ class TollFreeCarrierFilterContracts(unittest.TestCase):
         self.assertEqual(parse_qs(urlsplit(self.client.calls[-1][0]).query), {"groupId": ["G0000001"]})
 
 
-class BusinessVerificationContracts(unittest.TestCase):
+class TollFreeRequirementsContracts(unittest.TestCase):
     def setUp(self):
         self.client = CaptureClient()
         self.domain = load_domain("brands").Brands(self.client)
 
-    def test_get_business_verifications_encodes_the_group(self):
-        """The list is a GET on the group's encoded path with no body."""
-        self.domain.get_business_verifications("G0000001/x", token="session")
+    def test_get_toll_free_requirements_encodes_the_group(self):
+        """The read is a GET on the group's encoded path with no body."""
+        self.domain.get_toll_free_requirements("G0000001/x", token="session", idempotency_key="key-1")
         path, request = self.client.calls[-1]
-        self.assertEqual(path, "/brand/business-verification/G0000001%2Fx")
+        self.assertEqual(path, "/brand/toll-free-requirements/G0000001%2Fx")
         self.assertEqual(request["method"], "GET")
         self.assertNotIn("body", request)
         self.assertEqual(request["token"], "session")
-
-    def test_create_business_verification_posts_the_details(self):
-        """The create sends the details unchanged as the POST body and forwards the idempotency key."""
-        details = {
-            "businessName": "Acme Inc", "businessType": "CORPORATION", "industry": "RETAIL",
-            "registrationType": "EIN", "registrationNumber": "12-3456789", "website": "https://acme.example",
-            "street": "1 Main St", "city": "Austin", "state": "TX", "postalCode": "78701", "country": "US",
-            "representative": {
-                "firstName": "Ada", "lastName": "Lee", "email": "ada@acme.example", "phone": "+15125550100",
-                "jobTitle": "Owner", "jobLevel": "CEO",
-            },
-        }
-        self.domain.create_business_verification("G0000001", details, idempotency_key="key-1")
-        path, request = self.client.calls[-1]
-        self.assertEqual(path, "/brand/business-verification/G0000001")
-        self.assertEqual(request["method"], "POST")
-        self.assertEqual(request["body"], details)
         self.assertEqual(request["idempotency_key"], "key-1")
 
-    def test_get_business_verification_reads_one_by_its_id(self):
-        """The read is a GET on the group's and the business verification's encoded path with no body."""
-        self.domain.get_business_verification("G0000001/x", "BV1/2", token="session")
-        path, request = self.client.calls[-1]
-        self.assertEqual(path, "/brand/business-verification/G0000001%2Fx/BV1%2F2")
-        self.assertEqual(request["method"], "GET")
-        self.assertNotIn("body", request)
-        self.assertEqual(request["token"], "session")
-
-    def test_update_business_verification_puts_the_details(self):
-        """The update sends the details unchanged as the PUT body on the business verification's path."""
-        details = {"businessName": "Acme Inc", "registrationType": "EIN", "registrationNumber": "12-3456789"}
-        self.domain.update_business_verification("G0000001", "BV1/2", details, idempotency_key="key-1")
-        path, request = self.client.calls[-1]
-        self.assertEqual(path, "/brand/business-verification/G0000001/BV1%2F2")
-        self.assertEqual(request["method"], "PUT")
-        self.assertEqual(request["body"], details)
-        self.assertEqual(request["idempotency_key"], "key-1")
-
-    def test_business_verification_requires_the_group_id_and_details(self):
+    def test_get_toll_free_requirements_requires_the_group_id(self):
         with self.assertRaises(ValueError):
-            self.domain.get_business_verifications("")
+            self.domain.get_toll_free_requirements("")
         with self.assertRaises(ValueError):
-            self.domain.create_business_verification("", {"businessName": "Acme Inc"})
-        with self.assertRaises(ValueError):
-            self.domain.create_business_verification("G0000001", None)
-        with self.assertRaises(ValueError):
-            self.domain.get_business_verification("", "BV1")
-        with self.assertRaises(ValueError):
-            self.domain.get_business_verification("G0000001", "")
-        with self.assertRaises(ValueError):
-            self.domain.update_business_verification("", "BV1", {"businessName": "Acme Inc"})
-        with self.assertRaises(ValueError):
-            self.domain.update_business_verification("G0000001", "", {"businessName": "Acme Inc"})
-        with self.assertRaises(ValueError):
-            self.domain.update_business_verification("G0000001", "BV1", None)
+            self.domain.get_toll_free_requirements(None)
         self.assertEqual(self.client.calls, [])
 
-    def test_submit_business_verification_is_gone(self):
-        """create_business_verification and update_business_verification replace it."""
-        self.assertFalse(hasattr(self.domain, "submit_business_verification"))
-
-
-class SubgroupBusinessVerificationContracts(unittest.TestCase):
-    def setUp(self):
-        self.client = CaptureClient()
-        self.domain = load_domain("brands").Brands(self.client)
-
-    def test_get_business_verifications_sends_the_subgroup_as_a_query(self):
-        """A given subgroup goes, encoded, into the subgroupId query parameter of the list."""
-        self.domain.get_business_verifications("G0000001", subgroup_id="S0000001/x", token="session")
+    def test_create_toll_free_brand_sends_the_five_business_fields(self):
+        """A brand reviewed on submit sends its five business fields in tollFree, in the POST body as given."""
+        brand_data = {
+            "subgroupId": "S0000001", "displayName": "Acme", "companyName": "Acme Inc", "street": "1 Main St",
+            "city": "Austin", "state": "TX", "postalCode": "78701", "country": "US", "email": "support@acme.example",
+            "firstName": "Ada", "lastName": "Lee", "website": "https://acme.example",
+            "tollFree": {
+                "businessRegistrationType": "EIN", "legalEntityType": "PRIVATE_COMPANY", "taxId": "12-3456789",
+                "countryCode": "US", "supportPhone": "15125550100", "businessStructure": "CORPORATION",
+                "industry": "RETAIL", "contactEmail": "ada@acme.example", "contactJobTitle": "Owner",
+                "contactJobLevel": "CEO",
+            },
+        }
+        self.domain.create_toll_free_brand(brand_data, idempotency_key="key-1")
         path, request = self.client.calls[-1]
-        self.assertEqual(urlsplit(path).path, "/brand/business-verification/G0000001")
-        self.assertEqual(urlsplit(path).query, "subgroupId=S0000001%2Fx")
-        self.assertEqual(request["method"], "GET")
-        self.assertNotIn("body", request)
-        self.assertEqual(request["token"], "session")
-
-    def test_create_business_verification_sends_the_subgroup_as_a_query(self):
-        """A given subgroup goes into the query, never the body, and the idempotency key is forwarded."""
-        details = {"businessName": "Acme Inc", "country": "US"}
-        self.domain.create_business_verification("G0000001", details, subgroup_id="S0000001", idempotency_key="key-1")
-        path, request = self.client.calls[-1]
-        self.assertEqual(path, "/brand/business-verification/G0000001?subgroupId=S0000001")
+        self.assertEqual(path, "/brand/toll-free")
         self.assertEqual(request["method"], "POST")
-        self.assertEqual(request["body"], {"businessName": "Acme Inc", "country": "US"})
+        self.assertEqual(request["body"], brand_data)
         self.assertEqual(request["idempotency_key"], "key-1")
 
-    def test_business_verification_urls_are_unchanged_without_a_subgroup(self):
-        """Without a subgroup neither method adds a query string."""
-        self.domain.get_business_verifications("G0000001")
-        self.domain.create_business_verification("G0000001", {"businessName": "Acme Inc"})
-        self.assertEqual([path for path, _ in self.client.calls], ["/brand/business-verification/G0000001"] * 2)
+    def test_submit_business_verification_is_gone(self):
+        """So are the four methods that replaced it."""
+        for method in ("submit_business_verification", "get_business_verifications", "get_business_verification",
+                       "create_business_verification", "update_business_verification"):
+            self.assertFalse(hasattr(self.domain, method), method)
 
 
 if __name__ == "__main__":

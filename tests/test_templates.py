@@ -22,7 +22,7 @@ from signalhouse_sms.exceptions import SignalHouseValidationError  # noqa: E402
 
 BODY = {
     "channel": "rcs",
-    "contentFormat": "rcs.blocks.v1",
+    "contentFormat": "content.v1",
     "content": {"blocks": [{"id": "b1", "kind": "text", "text": "Hi {{first_name}}"}]},
     "variables": [{"key": "first_name", "type": "text", "required": True}],
     "defaults": {},
@@ -93,6 +93,10 @@ class TemplateContracts(unittest.TestCase):
         templates.capabilities(group_id="G1", channel="rcs", provider="sinch")
         path, query, _ = self.last()
         self.assertEqual((path, query), ("/template/capabilities", {"groupId": ["G1"], "channel": ["rcs"], "provider": ["sinch"]}))
+
+        templates.geocode_address(group_id="G1", address="88 Lakeshore Drive, Chicago")
+        path, query, call = self.last()
+        self.assertEqual((path, call["method"], query), ("/template/geocode", "GET", {"groupId": ["G1"], "address": ["88 Lakeshore Drive, Chicago"]}))
 
     def test_update_sends_only_group_id_and_given_fields_and_distinguishes_null_tag(self):
         templates = self.sdk.templates

@@ -11,6 +11,7 @@ from .messages import Messages
 from .notifications import Notifications
 from .numbers import Numbers
 from .onboarding import Onboarding
+from .rcs import Rcs
 from .shortlinks import Shortlinks
 from .subgroups import Subgroups
 from .subscriptions import Subscriptions
@@ -31,6 +32,7 @@ __all__ = [
     "Notifications",
     "Numbers",
     "Onboarding",
+    "Rcs",
     "Shortlinks",
     "Subgroups",
     "Subscriptions",

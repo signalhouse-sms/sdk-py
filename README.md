@@ -80,11 +80,12 @@ The SDK is organized into domain modules matching the SignalHouse API:
 |--------|-------------|
 | `sdk.auth` | Login, password reset, auth history |
 | `sdk.billing` | Wallets, payment methods, funds, invoices, fees |
-| `sdk.brands` | 10DLC brand registration and management, toll-free business verification |
+| `sdk.brands` | 10DLC and toll-free brand registration and management |
 | `sdk.campaigns` | 10DLC campaign management |
 | `sdk.groups` | Group management |
 | `sdk.landings` | Landing page management (with file uploads) |
 | `sdk.templates` | Versioned message templates: drafts, publish, archive, validate, capabilities, media upload |
+| `sdk.rcs.agents` | RCS agents linked to a 10DLC brand and campaign: drafts, validate, submit, archive, logo/hero upload |
 | `sdk.messages` | Send SMS/MMS/Group MMS, message logs, analytics |
 | `sdk.notifications` | Notification management |
 | `sdk.numbers` | Phone number purchase, assignment, transfer, lookup |

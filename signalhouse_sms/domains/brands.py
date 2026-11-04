@@ -55,7 +55,12 @@ class Brands:
         Returns:
             Standardized response dict. Each brand may have ``brandId: null`` until a carrier
             Brand ID is assigned — use ``_id`` for polling. Each brand carries ``carrierSuspensions``
-            (carrier brand suspension rules; active while ``liftedAt`` is null).
+            (carrier brand suspension rules; active while ``liftedAt`` is null). Each toll-free brand
+            carries ``tollFree.reviewsBusinessOnSubmit`` (whether it's reviewed when it's submitted and
+            keeps its business details from then on); when that is True, it also carries the five
+            business fields it was submitted with (tollFree's businessStructure, industry, contactEmail,
+            contactJobTitle and contactJobLevel) and ``tollFree.rejectionReason`` (why it was rejected,
+            or None).
         """
         query_string = self._sdk._get_query_string({
             "id": id,
@@ -158,12 +163,25 @@ class Brands:
         ``supportPhone`` must be E.164 with an optional leading ``+`` and no spaces, parentheses
         or hyphens (e.g. ``"17025550100"``).
 
-        ``tollFree.businessVerificationId`` names the business verification the brand uses (starts with BV). A group
-        whose toll-free brands need a business verification must send a VERIFIED one of the brand's group (in a group
-        that verifies each subgroup's business separately, of the brand's subgroup); any other group gets 400 if it
-        sends one. With it, the legal fields (companyName, street, city, state, postalCode, country, firstName,
-        lastName and tollFree's businessRegistrationType, taxId, countryCode and taxIdIssuingCountry) are optional:
-        the business verification's values replace any that are sent. It can't be changed after creation.
+        Some groups' toll-free brands are reviewed when they're submitted; get_toll_free_requirements says
+        whether a group's are. Such a brand also needs five ``tollFree`` fields: businessStructure
+        (CO_OPERATIVE, CORPORATION, LIMITED_LIABILITY_CORPORATION, NON_PROFIT_CORPORATION or PARTNERSHIP),
+        industry (AGRICULTURE, AUTOMOTIVE, BANKING, CONSTRUCTION, CONSUMER, EDUCATION, ELECTRONICS,
+        ENGINEERING, ENERGY, FAST_MOVING_CONSUMER_GOODS, FINANCIAL, FINTECH, FOOD_AND_BEVERAGE, GOVERNMENT,
+        HEALTHCARE, HOSPITALITY, INSURANCE, JEWELRY, LEGAL, MANUFACTURING, MEDIA, NOT_FOR_PROFIT, OIL_AND_GAS,
+        ONLINE, PROFESSIONAL_SERVICES, RAW_MATERIALS, REAL_ESTATE, RELIGION, RETAIL, TECHNOLOGY,
+        TELECOMMUNICATIONS, TRANSPORTATION or TRAVEL), contactEmail (a valid email, at most 100
+        characters), contactJobTitle (at most 100 characters) and contactJobLevel (DIRECTOR, GM, VP, CEO,
+        CFO, GENERAL_COUNSEL or OTHER). Its ``tollFree.countryCode`` must be ``"US"`` or ``"CA"`` and its
+        ``state`` a 2-letter state or province code. Any other group's toll-free brands are refused the
+        five fields (400).
+
+        Such a brand stays DCA_PENDING until its business details pass the review, which usually takes 1–2
+        business days, then becomes DCA_ACTIVE; if they don't pass, it becomes DCA_REJECTED with
+        ``tollFree.rejectionReason`` saying why. To fix a rejected brand, create it again with the
+        corrections; the rejected one can then be deleted. Its business details (companyName, street, city,
+        state, postalCode, country, firstName, lastName, tollFree's businessRegistrationType, taxId,
+        countryCode and taxIdIssuingCountry, and the five) can't be changed after it's submitted.
 
         Args:
             brand_data: The data for the toll-free brand to be created (see API docs for required
@@ -174,7 +192,9 @@ class Brands:
 
         Returns:
             Standardized response dict. For Toll-Free, ``brandId`` is a ``TFNB``-prefixed id when
-            assigned; otherwise ``null`` — use ``_id`` to poll.
+            assigned; otherwise ``null`` — use ``_id`` to poll. The brand's ``tollFree`` carries
+            ``reviewsBusinessOnSubmit`` (whether it's reviewed when it's submitted) and, when that is
+            True, the five business fields and ``rejectionReason`` (None until it's rejected).
 
         Raises:
             SignalHouseValidationError: If brand_data is missing.
@@ -189,175 +209,39 @@ class Brands:
             idempotency_key=idempotency_key,
         )
 
-    def get_business_verifications(
+    def get_toll_free_requirements(
         self,
         group_id: str,
         *,
-        subgroup_id: str | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
-        """List a group's business verifications, newest first, and whether its toll-free brands need one.
-
-        Some groups verify each subgroup's business separately: a platform whose subgroups are separate businesses, set
-        up by Signal House. For those groups subgroup_id is required.
+        """Get whether a group's new toll-free brands are reviewed when they're submitted, which decides what they need.
 
         Args:
-            group_id: The ID of the group whose business verifications to list.
-            subgroup_id: The subgroup whose business verifications to list, sent as the subgroupId query parameter
-                only when given. Required for a group that verifies each subgroup's business separately (400 without
-                it); for any other group, the group's business verifications cover every subgroup. It must be one of
-                the group's subgroups (404 otherwise).
+            group_id: The ID of the group whose toll-free brand requirements to get.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict. ``data`` holds groupId, subgroupId (only when the business verifications
-            belong to one subgroup), required (whether the group's new toll-free brands need a business
-            verification) and businessVerifications, newest first. Each has businessVerificationId, groupId,
-            subgroupId (only when set), status (SUBMITTING, IN_REVIEW, VERIFIED or NEEDS_CHANGES), details,
-            submittedAt, reviewedAt and rejectionReason (why it needs changes, or None).
+            Standardized response dict. ``data`` holds groupId and reviewsBusinessOnSubmit. When
+            reviewsBusinessOnSubmit is True, a new toll-free brand in the group needs tollFree's
+            businessStructure, industry, contactEmail, contactJobTitle and contactJobLevel, a
+            ``tollFree.countryCode`` of ``"US"`` or ``"CA"`` and a 2-letter ``state``; it stays DCA_PENDING
+            until it's reviewed, and its business details can't be changed after it's submitted (see
+            create_toll_free_brand). When False, the group's toll-free brands are refused those five fields.
+            403 when the caller can't view the group.
 
         Raises:
             SignalHouseValidationError: If group_id is missing.
         """
         self._sdk._require({"groupId": group_id})
         safe_group_id = quote(str(group_id), safe="")
-        query_string = self._sdk._get_query_string({"subgroupId": subgroup_id}) if subgroup_id is not None else ""
         return self._sdk._request(
-            f"/brand/business-verification/{safe_group_id}{query_string}",
+            f"/brand/toll-free-requirements/{safe_group_id}",
             method="GET",
-            token=token,
-            headers=headers,
-            idempotency_key=idempotency_key,
-        )
-
-    def get_business_verification(
-        self,
-        group_id: str,
-        business_verification_id: str,
-        *,
-        token: str | None = None,
-        headers: dict[str, str] | None = None,
-        idempotency_key: str | None = None,
-    ) -> dict[str, Any]:
-        """Get one of a group's business verifications by its ID.
-
-        Args:
-            group_id: The ID of the group the business verification belongs to.
-            business_verification_id: The ID of the business verification to get (starts with BV).
-            token: Optional bearer token for authentication.
-            headers: Additional headers to include in the request.
-            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
-
-        Returns:
-            Standardized response dict. ``data`` holds the business verification, as get_business_verifications
-            lists it, plus required. 404 when it isn't one of the group's.
-
-        Raises:
-            SignalHouseValidationError: If group_id or business_verification_id is missing.
-        """
-        self._sdk._require({"groupId": group_id, "businessVerificationId": business_verification_id})
-        safe_group_id = quote(str(group_id), safe="")
-        safe_business_verification_id = quote(str(business_verification_id), safe="")
-        return self._sdk._request(
-            f"/brand/business-verification/{safe_group_id}/{safe_business_verification_id}",
-            method="GET",
-            token=token,
-            headers=headers,
-            idempotency_key=idempotency_key,
-        )
-
-    def create_business_verification(
-        self,
-        group_id: str,
-        details: dict[str, Any],
-        *,
-        subgroup_id: str | None = None,
-        token: str | None = None,
-        headers: dict[str, str] | None = None,
-        idempotency_key: str | None = None,
-    ) -> dict[str, Any]:
-        """Create and submit a new business verification.
-
-        Review usually takes 1–2 business days. Once it is VERIFIED, a new toll-free brand uses it by sending its ID
-        as ``tollFree.businessVerificationId`` (see create_toll_free_brand). Some groups verify each subgroup's
-        business separately: a platform whose subgroups are separate businesses, set up by Signal House. For those
-        groups subgroup_id is required, and only that subgroup's toll-free brands can use the business verification.
-
-        Args:
-            group_id: The ID of the group the business verification is for (the caller's active group).
-            details: The business verification: businessName, businessType, industry, registrationType,
-                     registrationNumber, website, street, optional street2, city, state, postalCode,
-                     country ("US" or "CA") and a ``representative`` sub-object (firstName, lastName,
-                     email, phone, jobTitle, jobLevel). See the API docs for each field's accepted values.
-            subgroup_id: The subgroup whose business it verifies, sent as the subgroupId query parameter only when
-                given. Required for a group that verifies each subgroup's business separately (400 without it); for
-                any other group, the business verification covers every subgroup. It must be one of the group's
-                subgroups (404 otherwise) and active (400 otherwise).
-            token: Optional bearer token for authentication.
-            headers: Additional headers to include in the request.
-            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
-
-        Returns:
-            Standardized response dict (status 202). ``data`` is the new business verification, as
-            get_business_verifications lists it, with status SUBMITTING. 400 when the group's toll-free brands
-            don't need a business verification.
-
-        Raises:
-            SignalHouseValidationError: If group_id or details is missing.
-        """
-        self._sdk._require({"groupId": group_id, "details": details})
-        safe_group_id = quote(str(group_id), safe="")
-        query_string = self._sdk._get_query_string({"subgroupId": subgroup_id}) if subgroup_id is not None else ""
-        return self._sdk._request(
-            f"/brand/business-verification/{safe_group_id}{query_string}",
-            method="POST",
-            body=details,
-            token=token,
-            headers=headers,
-            idempotency_key=idempotency_key,
-        )
-
-    def update_business_verification(
-        self,
-        group_id: str,
-        business_verification_id: str,
-        details: dict[str, Any],
-        *,
-        token: str | None = None,
-        headers: dict[str, str] | None = None,
-        idempotency_key: str | None = None,
-    ) -> dict[str, Any]:
-        """Correct and resubmit a business verification that needs changes.
-
-        Allowed only while its status is NEEDS_CHANGES (400 otherwise). Review usually takes 1–2 business days; the
-        toll-free brands that use it stay pending until it is verified.
-
-        Args:
-            group_id: The ID of the group the business verification belongs to (the caller's active group).
-            business_verification_id: The ID of the business verification to update (starts with BV).
-            details: The corrected business verification, with the same fields as create_business_verification.
-            token: Optional bearer token for authentication.
-            headers: Additional headers to include in the request.
-            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
-
-        Returns:
-            Standardized response dict (status 202). ``data`` is the business verification, as
-            get_business_verifications lists it, with status SUBMITTING. 404 when it isn't one of the group's.
-
-        Raises:
-            SignalHouseValidationError: If group_id, business_verification_id or details is missing.
-        """
-        self._sdk._require({"groupId": group_id, "businessVerificationId": business_verification_id, "details": details})
-        safe_group_id = quote(str(group_id), safe="")
-        safe_business_verification_id = quote(str(business_verification_id), safe="")
-        return self._sdk._request(
-            f"/brand/business-verification/{safe_group_id}/{safe_business_verification_id}",
-            method="PUT",
-            body=details,
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,

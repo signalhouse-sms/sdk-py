@@ -298,6 +298,8 @@ class Registrations:
         status: str | list[str] | None = None,
         parent_registration_id: str | None = None,
         phone_number: str | None = None,
+        brand_id: str | None = None,
+        campaign_id: str | None = None,
         sort_by: str | None = None,
         sort_order: str | None = None,
         page: int | None = None,
@@ -319,6 +321,8 @@ class Registrations:
                 PENDING_DELETE, DELETED, EXPIRED or RECONCILIATION_REQUIRED.
             parent_registration_id: Filter by the parent registration (e.g. a program's identity).
             phone_number: Filter to registrations holding this phone number.
+            brand_id: RCS agents only: filter to agents linked to this 10DLC brand (carrier ID, provisional UUID or _id).
+            campaign_id: RCS agents only: filter to agents linked to this 10DLC campaign (campaign ID or _id).
             sort_by: Sort field — createdAt (default), subgroupId, registrationId, region or status.
             sort_order: Sort direction — asc or desc (default).
             page: The page number for pagination.
@@ -339,6 +343,8 @@ class Registrations:
             "status": status,
             "parentRegistrationId": parent_registration_id,
             "phoneNumber": phone_number,
+            "brandId": brand_id,
+            "campaignId": campaign_id,
             "sortBy": sort_by,
             "sortOrder": sort_order,
             "page": page,
@@ -384,6 +390,150 @@ class Registrations:
             idempotency_key=idempotency_key,
         )
 
+    def update_registration(
+        self,
+        registration_id: str,
+        data: dict[str, Any],
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Edit a draft, or a registration Signal House rejected, before submitting it (types that keep drafts, such as RCS_AGENT).
+
+        data is a partial of the type's create fields: for RCS_AGENT agent and consent merge field by field, every
+        other key replaces, and {"campaignId": None} unlinks the campaign. 409 once submitted.
+
+        Args:
+            registration_id: The registration ID (e.g. RCSA7K2M1QZ8RP).
+            data: The fields to change.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with the updated registration.
+
+        Raises:
+            SignalHouseValidationError: If registration_id or data is missing.
+        """
+        self._sdk._require({"registrationId": registration_id, "data": data})
+        safe_registration_id = quote(str(registration_id), safe="")
+        return self._sdk._request(
+            f"/registration/{safe_registration_id}",
+            method="PUT",
+            body=data,
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def validate_registration(
+        self,
+        registration_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Check a draft against every submit requirement and the live state of its links, without writing.
+
+        Args:
+            registration_id: The registration ID (e.g. RCSA7K2M1QZ8RP).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is {valid, errors: [{field, reason}], warnings: [{field, reason}]}.
+
+        Raises:
+            SignalHouseValidationError: If registration_id is missing.
+        """
+        self._sdk._require({"registrationId": registration_id})
+        safe_registration_id = quote(str(registration_id), safe="")
+        return self._sdk._request(
+            f"/registration/{safe_registration_id}/validate",
+            method="POST",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def submit_registration(
+        self,
+        registration_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Submit a draft.
+
+        A type Signal House reviews goes to SIGNAL_HOUSE_REVIEW; a type it does not (RCS_AGENT) goes to SUBMITTING and is
+        filed with the provider at once. A draft that fails a requirement gets a 400 whose details carry
+        {code: "REGISTRATION_INCOMPLETE", errors, warnings}; a second submit, or one of a registration the provider
+        already holds, gets a 409.
+
+        Args:
+            registration_id: The registration ID (e.g. RCSA7K2M1QZ8RP).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with the registration, now SIGNAL_HOUSE_REVIEW or SUBMITTING.
+
+        Raises:
+            SignalHouseValidationError: If registration_id is missing.
+        """
+        self._sdk._require({"registrationId": registration_id})
+        safe_registration_id = quote(str(registration_id), safe="")
+        return self._sdk._request(
+            f"/registration/{safe_registration_id}/submit",
+            method="POST",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def launch_registration(
+        self,
+        registration_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Request the launch of a registration the provider already holds (an RCS agent in testing).
+
+        The launch requirements are checked and the registration goes to SIGNAL_HOUSE_REVIEW, whose approval files the
+        provider's launch request. Allowed while the provider reports the agent ready for testing, after a Signal House
+        rejection, or after every carrier refused an earlier launch (409 otherwise); a failed requirement is a 400 whose
+        details carry {code: "REGISTRATION_INCOMPLETE", errors, warnings}.
+
+        Args:
+            registration_id: The registration ID (e.g. RCSA7K2M1QZ8RP).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with the registration, now SIGNAL_HOUSE_REVIEW.
+
+        Raises:
+            SignalHouseValidationError: If registration_id is missing.
+        """
+        self._sdk._require({"registrationId": registration_id})
+        safe_registration_id = quote(str(registration_id), safe="")
+        return self._sdk._request(
+            f"/registration/{safe_registration_id}/launch",
+            method="POST",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
     def cancel_registration(
         self,
         registration_id: str,
@@ -395,7 +545,8 @@ class Registrations:
         """Cancel a registration.
 
         Allowed from SIGNAL_HOUSE_REVIEW, SIGNAL_HOUSE_APPROVED, PENDING_PROVIDER, NEEDS_INFORMATION,
-        PAYMENT_REQUIRED and APPROVED (409 otherwise). Numbers already allocated stay on the account and stop sending.
+        PAYMENT_REQUIRED and APPROVED (409 otherwise), and for types that keep drafts also from DRAFT and
+        SIGNAL_HOUSE_REJECTED. Numbers already allocated stay on the account and stop sending.
 
         Args:
             registration_id: The ID of the registration to cancel.
