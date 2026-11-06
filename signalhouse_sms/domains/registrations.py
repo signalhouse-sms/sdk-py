@@ -321,8 +321,8 @@ class Registrations:
                 PENDING_DELETE, DELETED, EXPIRED or RECONCILIATION_REQUIRED.
             parent_registration_id: Filter by the parent registration (e.g. a program's identity).
             phone_number: Filter to registrations holding this phone number.
-            brand_id: RCS agents only: filter to agents linked to this 10DLC brand (carrier ID, provisional UUID or _id).
-            campaign_id: RCS agents only: filter to agents linked to this 10DLC campaign (campaign ID or _id).
+            brand_id: RCS agents only: filter to agents linked to this brand (carrier ID, provisional UUID or _id).
+            campaign_id: RCS agents only: filter to agents linked to this campaign (campaign ID or _id).
             sort_by: Sort field — createdAt (default), subgroupId, registrationId, region or status.
             sort_order: Sort direction — asc or desc (default).
             page: The page number for pagination.
@@ -511,6 +511,7 @@ class Registrations:
         provider's launch request. Allowed while the provider reports the agent ready for testing, after a Signal House
         rejection, or after every carrier refused an earlier launch (409 otherwise); a failed requirement is a 400 whose
         details carry {code: "REGISTRATION_INCOMPLETE", errors, warnings}.
+        An RCS agent's launch request charges its launch fees: a wallet that cannot cover them gets a 402, and nothing changes.
 
         Args:
             registration_id: The registration ID (e.g. RCSA7K2M1QZ8RP).

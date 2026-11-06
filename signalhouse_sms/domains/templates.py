@@ -138,7 +138,8 @@ class Templates:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is {head, version} (201).
+            Standardized response dict whose data is {head, version, validation} (201). validation is
+            {valid, errors, warnings}, or None when the checks could not run; the draft saves even when it lists errors.
 
         Raises:
             SignalHouseValidationError: If group_id, name or body is missing.
@@ -273,7 +274,8 @@ class Templates:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is {head, version}; an archived template answers 409 TEMPLATE_ARCHIVED.
+            Standardized response dict whose data is {head, version, validation}; the draft saves even when validation
+            lists errors, and an archived template answers 409 TEMPLATE_ARCHIVED.
 
         Raises:
             SignalHouseValidationError: If template_id or group_id is missing.
@@ -308,7 +310,7 @@ class Templates:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is {head, version}; an incomplete draft answers 400 TEMPLATE_INVALID,
+            Standardized response dict whose data is {head, version, warnings}; an incomplete draft answers 400 TEMPLATE_INVALID,
             a template with no draft answers 409 NO_DRAFT, and a draft that changed while it was being published
             answers 409 DRAFT_CHANGED (publish again).
 

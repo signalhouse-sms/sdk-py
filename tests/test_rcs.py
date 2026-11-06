@@ -18,7 +18,7 @@ except ImportError:
     sys.modules["requests"] = stub
 
 from signalhouse_sms import SignalHouseSDK  # noqa: E402
-from signalhouse_sms.domains.rcs import Rcs, RcsAgents  # noqa: E402
+from signalhouse_sms.domains.rcs import Rcs, RcsAgents, RcsMessages  # noqa: E402
 from signalhouse_sms.exceptions import SignalHouseValidationError  # noqa: E402
 
 AGENT = "RCSA7K2M1QZ8RP"
@@ -33,6 +33,112 @@ class CaptureSession:
     def request(self, **kwargs):
         self.calls.append(kwargs)
         return types.SimpleNamespace(status_code=200, json=lambda: {}, text="{}")
+
+
+class RcsMessageContracts(unittest.TestCase):
+    RECIPIENTS = [{"phoneNumber": "+15125550199", "variables": {"name": "Ada"}}]
+
+    def setUp(self):
+        self.sdk = SignalHouseSDK(api_key="test", base_url="https://example.invalid")
+        self.session = self.sdk._session = CaptureSession()
+        self.messages = self.sdk.rcs.messages
+
+    def last(self):
+        """Return (path, query, request kwargs) of the last captured request."""
+        call = self.session.calls[-1]
+        parts = urlsplit(call["url"])
+        return parts.path, parse_qs(parts.query), call
+
+    def test_sdk_exposes_rcs_messages(self):
+        self.assertIsInstance(self.messages, RcsMessages)
+
+    def test_send_posts_given_fields_and_requires_agent_and_recipients(self):
+        fallback = {"mode": "auto", "channel": "sms", "from": "15125550100", "content": {"text": "Hi"}, "validitySeconds": 600}
+        self.messages.send(agent_id=AGENT, recipients=self.RECIPIENTS, content={"blocks": []}, content_format="content.v1",
+                           traffic_type="TRANSACTION", ttl_seconds=900, fallback=fallback,
+                           status_callback_url="https://example.com/cb", enable_shortlink=False, is_test=True,
+                           simulate="delivered", idempotency_key="k1")
+        path, _, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message/rcs", "POST"))
+        self.assertEqual(call["headers"]["Idempotency-Key"], "k1")
+        self.assertEqual(call["json"], {"agentId": AGENT, "recipients": self.RECIPIENTS, "content": {"blocks": []},
+                                        "contentFormat": "content.v1", "trafficType": "TRANSACTION", "ttlSeconds": 900,
+                                        "fallback": fallback, "statusCallbackUrl": "https://example.com/cb",
+                                        "enableShortlink": False, "isTest": True, "simulate": "delivered"})
+        self.messages.send(agent_id=AGENT, recipients=self.RECIPIENTS, template_id="T1", template_version=2,
+                           expire_time="2026-11-05T00:00:00Z")
+        self.assertEqual(self.last()[2]["json"], {"agentId": AGENT, "recipients": self.RECIPIENTS, "templateId": "T1",
+                                                  "templateVersion": 2, "expireTime": "2026-11-05T00:00:00Z"})
+        with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
+            self.messages.send(agent_id="", recipients=self.RECIPIENTS)
+        with self.assertRaisesRegex(SignalHouseValidationError, "recipients"):
+            self.messages.send(agent_id=AGENT, recipients=None)
+
+    def test_validate_posts_the_send_body(self):
+        self.messages.validate(agent_id=AGENT, recipients=self.RECIPIENTS, template_id="T1", simulate="read")
+        path, _, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message/rcs/validate", "POST"))
+        self.assertEqual(call["json"], {"agentId": AGENT, "recipients": self.RECIPIENTS, "templateId": "T1", "simulate": "read"})
+
+    def test_estimate_adds_the_channel(self):
+        self.messages.estimate(agent_id=AGENT, recipient_count=500, template_id="T1", template_version=2,
+                               traffic_type="PROMOTION", fallback={"mode": "rcs_only"})
+        path, _, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message/estimate", "POST"))
+        self.assertEqual(call["json"], {"channel": "rcs", "agentId": AGENT, "recipientCount": 500, "templateId": "T1",
+                                        "templateVersion": 2, "trafficType": "PROMOTION", "fallback": {"mode": "rcs_only"}})
+        with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
+            self.messages.estimate(agent_id="", recipient_count=500)
+
+    def test_capabilities_posts_the_numbers(self):
+        self.messages.capabilities(AGENT, phone_numbers=["+15125550199"])
+        path, _, call = self.last()
+        self.assertEqual((path, call["method"]), ("/rcs/capabilities", "POST"))
+        self.assertEqual(call["json"], {"agentId": AGENT, "phoneNumbers": ["+15125550199"]})
+        with self.assertRaisesRegex(SignalHouseValidationError, "phoneNumbers"):
+            self.messages.capabilities(AGENT, phone_numbers=None)
+
+    def test_get_and_get_message_address_the_message(self):
+        self.messages.get("a/1")
+        call = self.session.calls[-1]
+        self.assertEqual((call["method"], call["url"]), ("GET", "https://example.invalid/message/a%2F1"))
+        self.sdk.messages.get_message("a/1")
+        call = self.session.calls[-1]
+        self.assertEqual((call["method"], call["url"]), ("GET", "https://example.invalid/message/a%2F1"))
+        with self.assertRaisesRegex(SignalHouseValidationError, "messageId"):
+            self.messages.get("")
+        with self.assertRaisesRegex(SignalHouseValidationError, "id"):
+            self.sdk.messages.get_message("")
+
+    def test_list_maps_filters_and_adds_the_type(self):
+        self.messages.list(agent_id=AGENT, from_="2026-11-01", to="2026-11-02", group_id="G1", status="READ", page=2,
+                           limit=50, template_id="T1", template_version=3, bulk_id="B1", fallback_reason="NOT_CAPABLE",
+                           billing_class="RICH_MEDIA", delivered_channel="sms", is_test=False)
+        path, query, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message", "GET"))
+        self.assertEqual(query, {"registrationId": [AGENT], "startDate": ["2026-11-01"], "endDate": ["2026-11-02"],
+                                 "groupId": ["G1"], "status": ["READ"], "page": ["2"], "limit": ["50"],
+                                 "templateId": ["T1"], "templateVersion": ["3"], "bulkId": ["B1"],
+                                 "fallbackReason": ["NOT_CAPABLE"], "billingClass": ["RICH_MEDIA"],
+                                 "deliveredChannel": ["sms"], "isTest": ["false"], "messageType": ["RCS"]})
+        with self.assertRaisesRegex(SignalHouseValidationError, "groupId"):
+            self.messages.list(group_id=None, from_="2026-11-01", to="2026-11-02", agent_id=AGENT)
+        with self.assertRaisesRegex(SignalHouseValidationError, "from"):
+            self.messages.list(group_id="G1", from_="", to="2026-11-02")
+        with self.assertRaisesRegex(SignalHouseValidationError, "to"):
+            self.messages.list(group_id="G1", from_="2026-11-01", to=None)
+        self.assertEqual(len(self.session.calls), 1)
+
+    def test_get_messages_forwards_the_rcs_filters(self):
+        self.sdk.messages.get_messages(group_id="G1", start_date="2026-11-01", end_date="2026-11-02", template_id="T1",
+                                       template_version=3, bulk_id="B1", fallback_reason="TTL_EXPIRED",
+                                       billing_class="RICH", delivered_channel="sms", is_test=False)
+        path, query, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message", "GET"))
+        self.assertEqual(query, {"groupId": ["G1"], "startDate": ["2026-11-01"], "endDate": ["2026-11-02"],
+                                 "templateId": ["T1"], "templateVersion": ["3"], "bulkId": ["B1"],
+                                 "fallbackReason": ["TTL_EXPIRED"], "billingClass": ["RICH"],
+                                 "deliveredChannel": ["sms"], "isTest": ["false"]})
 
 
 class RcsAgentContracts(unittest.TestCase):

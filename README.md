@@ -85,7 +85,8 @@ The SDK is organized into domain modules matching the SignalHouse API:
 | `sdk.groups` | Group management |
 | `sdk.landings` | Landing page management (with file uploads) |
 | `sdk.templates` | Versioned message templates: drafts, publish, archive, validate, capabilities, media upload |
-| `sdk.rcs.agents` | RCS agents linked to a 10DLC brand and campaign: drafts, validate, submit, archive, logo/hero upload |
+| `sdk.rcs.agents` | RCS agents linked to a brand and campaign: drafts, validate, submit, archive, logo/hero upload |
+| `sdk.rcs.messages` | RCS messages: send, validate, estimate, capability check, read |
 | `sdk.messages` | Send SMS/MMS/Group MMS, message logs, analytics |
 | `sdk.notifications` | Notification management |
 | `sdk.numbers` | Phone number purchase, assignment, transfer, lookup |
