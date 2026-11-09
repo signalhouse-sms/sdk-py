@@ -295,6 +295,27 @@ class TollFreeCarrierFilterContracts(unittest.TestCase):
         self.assertEqual(parse_qs(urlsplit(self.client.calls[-1][0]).query), {"groupId": ["G0000001"]})
 
 
+class ReleasedNumbersFilterContracts(unittest.TestCase):
+    def setUp(self):
+        self.client = CaptureClient()
+        self.domain = load_domain("numbers").Numbers(self.client)
+
+    def test_get_phone_numbers_sends_released_lowercase(self):
+        """The number list sends released as "true"/"false", not Python's "True"/"False"."""
+        for value, expected in ((True, "true"), (False, "false")):
+            with self.subTest(value=value):
+                self.domain.get_phone_numbers(group_id="G0000001", released=value)
+                path, request = self.client.calls[-1]
+                self.assertEqual(urlsplit(path).path, "/number")
+                self.assertEqual(request["method"], "GET")
+                self.assertEqual(parse_qs(urlsplit(path).query), {"groupId": ["G0000001"], "released": [expected]})
+
+    def test_get_phone_numbers_omits_released_by_default(self):
+        """Callers that do not pass the flag get the unchanged request."""
+        self.domain.get_phone_numbers(group_id="G0000001")
+        self.assertEqual(parse_qs(urlsplit(self.client.calls[-1][0]).query), {"groupId": ["G0000001"]})
+
+
 class TollFreeRequirementsContracts(unittest.TestCase):
     def setUp(self):
         self.client = CaptureClient()

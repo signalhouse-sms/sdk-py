@@ -129,6 +129,7 @@ class Numbers:
         page: int | None = None,
         limit: int | None = None,
         current_toll_free_carrier: bool | None = None,
+        released: bool | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -146,6 +147,8 @@ class Numbers:
             limit: The number of items per page (default: 20).
             current_toll_free_carrier: With subgroup_id or group_id: when True, return only toll-free numbers that a new
                 toll-free campaign in that group can use (those on the group's current toll-free carrier).
+            released: With subgroup_id or group_id: when True, return only its released numbers (status RELEASED)
+                instead of its active ones.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -181,6 +184,7 @@ class Numbers:
             "limit": limit,
             # urlencode would send Python's "True"; the API expects "true"/"false".
             "currentTollFreeCarrier": None if current_toll_free_carrier is None else str(current_toll_free_carrier).lower(),
+            "released": None if released is None else str(released).lower(),
         })
         return self._sdk._request(
             f"/number{query_string}",
