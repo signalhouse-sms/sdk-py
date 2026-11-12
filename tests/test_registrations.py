@@ -180,6 +180,9 @@ class RegistrationContracts(unittest.TestCase):
         self.assertEqual(request["body"], {"action": "APPROVE"})
         domain.admin.review_registration("REG1", "REJECT", "Not a business use case")
         self.assertEqual(self.client.calls[-1][1]["body"], {"action": "REJECT", "reason": "Not a business use case"})
+        reasons = [{"code": "OPT_IN_SCOPE", "reason": "Promotions are not covered"}]
+        domain.admin.review_registration("RCSA1", "REJECT", "Consent is too narrow", reason_code="OPT_IN_SCOPE", rejection_reasons=reasons)
+        self.assertEqual(self.client.calls[-1][1]["body"], {"action": "REJECT", "reason": "Consent is too narrow", "reasonCode": "OPT_IN_SCOPE", "rejectionReasons": reasons})
 
         domain.admin.correct_registration("REG1", "Provider asked", {"useCases": ["Support"]})
         path, request = self.client.calls[-1]

@@ -317,9 +317,12 @@ class Campaigns:
             Standardized response dict: {campaignId, brandId, usecase, brand: {status, brandScore,
             entityType}, att: {tier, scope, unit, sms: {limit}, mms: {limit}, marginPercent,
             nextTier}, tmobile: {tier, scope, unit, dailyLimit, thresholds, nextTier,
-            usedToday: {date, segments, resetsAt} | None}}. A None tier/limit means the carrier
-            ladder does not apply (unverified brand, GOVERNMENT entity, PUBLIC_SAFETY_RESTRICTED
-            usecase); a None nextTier means the top rung or a usecase-capped (LOW_VOLUME) campaign.
+            usedToday: {date, segments, resetsAt} | None, sharedWith: [{brandId, brandName}]}}. A
+            None tier/limit means the carrier ladder does not apply (unverified brand, GOVERNMENT
+            entity, PUBLIC_SAFETY_RESTRICTED usecase); a None nextTier means the top rung or a
+            usecase-capped (LOW_VOLUME) campaign. T-Mobile's counter is keyed per brand EIN, not per
+            brand: sharedWith lists other verified brands in the same group that share this EIN and
+            also carry a T-Mobile limit, since usedToday is their combined total, not this brand's alone.
 
         Raises:
             SignalHouseValidationError: If campaign_id is missing.
@@ -353,8 +356,8 @@ class Campaigns:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict with a list: [{ campaignId, brandId, brandName, usecase, tmobile: { tier, dailyLimit, usedToday: { date, segments, resetsAt } } }].
-            Campaigns without a T-Mobile limit (unverified brand, GOVERNMENT entity, PUBLIC_SAFETY_RESTRICTED usecase) are left out. The counter is per brand EIN and UTC day, so every campaign of a brand shows the same usage; a LOW_VOLUME campaign's limit is 2,000 whatever the brand's score.
+            Standardized response dict with a list: [{ campaignId, brandId, brandName, usecase, tmobile: { tier, dailyLimit, usedToday: { date, segments, resetsAt }, sharedWith: [{ brandId, brandName }] } }].
+            Campaigns without a T-Mobile limit (unverified brand, GOVERNMENT entity, PUBLIC_SAFETY_RESTRICTED usecase) are left out. The counter is per brand EIN and UTC day, so every campaign of a brand shows the same usage; a LOW_VOLUME campaign's limit is 2,000 whatever the brand's score. sharedWith lists this brand's other group brands on the same EIN that also carry a T-Mobile limit, since usedToday is their combined total.
 
         Raises:
             SignalHouseValidationError: If group_id is missing.

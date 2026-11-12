@@ -9,6 +9,20 @@ if TYPE_CHECKING:
     from ..client import SignalHouseSDK
 
 
+def _launch_body(acknowledge_fees: bool | None, acknowledge_phi: bool | None) -> dict[str, bool] | None:
+    """Build a launch request body from the acknowledgements the caller set.
+
+    Args:
+        acknowledge_fees: Accept the fees due, or None to leave it out.
+        acknowledge_phi: Accept the PHI disclosure, or None to leave it out.
+
+    Returns:
+        The body, or None when neither is set.
+    """
+    body = {key: value for key, value in (("acknowledgeFees", acknowledge_fees), ("acknowledgePhi", acknowledge_phi)) if value is not None}
+    return body or None
+
+
 class RegistrationsAdmin:
     """Admin-only registration review and recovery operations (SignalHouse staff)."""
 
@@ -21,6 +35,8 @@ class RegistrationsAdmin:
         action: str,
         reason: str | None = None,
         *,
+        reason_code: str | None = None,
+        rejection_reasons: list[dict[str, Any]] | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -30,7 +46,9 @@ class RegistrationsAdmin:
         Args:
             registration_id: The ID of the registration to review.
             action: "APPROVE" (submits the registration to the provider) or "REJECT".
-            reason: Why the registration was rejected; required for "REJECT".
+            reason: Why the registration was rejected; required for "REJECT". An RCS agent takes 10 to 256 characters.
+            reason_code: The rejection catalogue code; required to reject an RCS agent, refused for any other type.
+            rejection_reasons: Field-level reasons for an RCS agent: dicts of field, code, reason and recommendedAction.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -46,6 +64,10 @@ class RegistrationsAdmin:
         body: dict[str, Any] = {"action": action}
         if reason is not None:
             body["reason"] = reason
+        if reason_code is not None:
+            body["reasonCode"] = reason_code
+        if rejection_reasons is not None:
+            body["rejectionReasons"] = rejection_reasons
         return self._sdk._request(
             f"/registration/{safe_registration_id}/review",
             method="POST",
@@ -501,6 +523,8 @@ class Registrations:
         self,
         registration_id: str,
         *,
+        acknowledge_fees: bool | None = None,
+        acknowledge_phi: bool | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -511,10 +535,13 @@ class Registrations:
         provider's launch request. Allowed while the provider reports the agent ready for testing, after a Signal House
         rejection, or after every carrier refused an earlier launch (409 otherwise); a failed requirement is a 400 whose
         details carry {code: "REGISTRATION_INCOMPLETE", errors, warnings}.
-        An RCS agent's launch request charges its launch fees: a wallet that cannot cover them gets a 402, and nothing changes.
+        An RCS agent's launch request charges its launch fees: a wallet that cannot cover them gets a 402, and nothing changes. When any fee is due the request must set acknowledge_fees=True, or it gets a 400 with code FEE_ACKNOWLEDGEMENT_REQUIRED and nothing is held; a launch with nothing due needs no acknowledgement.
+        When the agent's brand vertical is healthcare or insurance, the launch needs the protected health information (PHI) disclosure acknowledged: send acknowledge_phi=True, or the request gets a 400 REGISTRATION_INCOMPLETE whose errors name consent.phiAcknowledgement. The API records the acknowledgement as consent.phiAcknowledgement {acknowledgedAt, acknowledgedBy} from the caller; the client sends only the boolean, and an agent update cannot set it. Once recorded, a later launch request needs no new acknowledgement.
 
         Args:
             registration_id: The registration ID (e.g. RCSA7K2M1QZ8RP).
+            acknowledge_fees: Accept the fees due; required when any are.
+            acknowledge_phi: Accept the PHI disclosure; required for a healthcare or insurance brand.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -530,6 +557,7 @@ class Registrations:
         return self._sdk._request(
             f"/registration/{safe_registration_id}/launch",
             method="POST",
+            body=_launch_body(acknowledge_fees, acknowledge_phi),
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,

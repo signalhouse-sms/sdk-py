@@ -302,6 +302,9 @@ class Templates:
     ) -> dict[str, Any]:
         """Publish the template's current draft.
 
+        A block whose text or image the Moderation API flags is an error with code CONTENT_POLICY_FLAGGED, whose message
+        names the category ("Content moderation flagged this text: spam"). The check passes when the Moderation API fails.
+
         Args:
             template_id: The template ID.
             group_id: The group that owns the template.
@@ -414,6 +417,9 @@ class Templates:
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Run publication validation against a candidate body or a stored version without saving anything.
+
+        The publish checks run, the content policy check included: a block whose text or image the Moderation API flags is
+        an error with code CONTENT_POLICY_FLAGGED. Saving a draft does not run that check.
 
         Args:
             template_id: The template ID.

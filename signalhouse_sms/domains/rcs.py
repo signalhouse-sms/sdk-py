@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any, BinaryIO, TYPE_CHECKING
 from urllib.parse import quote
 
+from .registrations import _launch_body
 from .templates import _UNSET
 
 if TYPE_CHECKING:
@@ -114,7 +115,7 @@ class RcsAgents:
             contact: The launch contact {firstName, lastName, role, email, mobile}: the individual at the brand the
                 carrier partner's reviewers may write to; required in full before the launch request.
             use_case: OTP, TRANSACTIONAL, PROMOTIONAL or MULTI_USE; required before submit.
-            billing_category: NON_CONVERSATIONAL (default) or CONVERSATIONAL; submit refuses CONVERSATIONAL.
+            billing_category: NON_CONVERSATIONAL (default, per message) or CONVERSATIONAL (per interactive session).
             default_fallback: {mode (auto, rcs_only, sms_only, none), channel (auto, sms, mms), from (a number on
                 the linked campaign)}.
             excluded_carriers: [] or ["T_MOBILE"] (the carrier partner's carrier name).
@@ -159,7 +160,7 @@ class RcsAgents:
         Args:
             group_id: Filter by group ID.
             subgroup_id: Filter by subgroup ID.
-            status: DRAFT, PENDING_REVIEW, REJECTED, AGENT_CREATING or ARCHIVED, one or a list.
+            status: DRAFT, PENDING_REVIEW, REJECTED, AGENT_CREATING, ARCHIVE_PENDING or ARCHIVED, one or a list.
             brand_id: Agents linked to this brand (carrier brand ID, provisional UUID or _id).
             campaign_id: Agents linked to this campaign (campaign ID or _id).
             page: The page number (default 1).
@@ -296,7 +297,7 @@ class RcsAgents:
     ) -> dict[str, Any]:
         """Submit a draft: create the agent at the carrier partner, with no review first.
 
-        It needs the full profile, a use case and NON_CONVERSATIONAL billing; otherwise a 400 whose details carry
+        It needs the full profile, a use case and a billing category; otherwise a 400 whose details carry
         {code: "REGISTRATION_INCOMPLETE", errors, warnings}. The agent moves to AGENT_CREATING, then IN_TESTING once
         the partner reports it ready.
 
@@ -318,6 +319,8 @@ class RcsAgents:
         self,
         agent_id: str,
         *,
+        acknowledge_fees: bool | None = None,
+        acknowledge_phi: bool | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -328,10 +331,13 @@ class RcsAgents:
         approval files the launch with the carrier partner. Allowed from IN_TESTING, REJECTED and CARRIER_REJECTED
         (409 otherwise); a failed requirement is a 400 whose details carry {code: "REGISTRATION_INCOMPLETE", errors,
         warnings}. Sends POST /registration/{agent_id}/launch: the agent is a registration.
-        The request charges the agent's launch fees: a wallet that cannot cover them gets a 402, and the agent stays where it is. The agent's launchFees quotes what the next request charges.
+        The request charges the agent's launch fees: a wallet that cannot cover them gets a 402, and the agent stays where it is. When any fee is due the request must set acknowledge_fees=True, or it gets a 400 with code FEE_ACKNOWLEDGEMENT_REQUIRED and nothing is held; a launch with nothing due needs no acknowledgement. The agent's launchFees quotes what the next request charges.
+        When the agent's brand vertical is healthcare or insurance, the launch needs the protected health information (PHI) disclosure acknowledged: send acknowledge_phi=True, or the request gets a 400 REGISTRATION_INCOMPLETE whose errors name consent.phiAcknowledgement. The API records the acknowledgement as consent.phiAcknowledgement {acknowledgedAt, acknowledgedBy} from the caller; the client sends only the boolean, and an agent update cannot set it. Once recorded, a later launch request needs no new acknowledgement.
 
         Args:
             agent_id: The agent ID.
+            acknowledge_fees: Accept the fees due; required when any are.
+            acknowledge_phi: Accept the PHI disclosure; required for a healthcare or insurance brand.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -347,6 +353,7 @@ class RcsAgents:
         return self._sdk._request(
             f"/registration/{safe_agent_id}/launch",
             method="POST",
+            body=_launch_body(acknowledge_fees, acknowledge_phi),
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,
@@ -362,6 +369,10 @@ class RcsAgents:
     ) -> dict[str, Any]:
         """Archive an agent.
 
+        One the carrier partner created stops sending at once and stays ARCHIVE_PENDING until Signal House
+        confirms the partner cancelled it, then ARCHIVED. Archiving cannot be undone; an agent already
+        ARCHIVE_PENDING answers 409.
+
         Args:
             agent_id: The agent ID.
             token: Optional bearer token for authentication.
@@ -369,7 +380,7 @@ class RcsAgents:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is the agent (status ARCHIVED).
+            Standardized response dict whose data is the agent (status ARCHIVE_PENDING or ARCHIVED).
 
         Raises:
             SignalHouseValidationError: If agent_id is missing.
@@ -405,6 +416,35 @@ class RcsAgents:
         """
         self._sdk._require({"phoneNumber": phone_number})
         return self._agent_call(agent_id, f"/testers/{quote(phone_number, safe='')}/resend", "POST", token, headers, idempotency_key)
+
+    def remove_tester(
+        self,
+        agent_id: str,
+        *,
+        phone_number: str,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Remove a tester at once, at any point before the agent is archived.
+
+        The number must be a tester on the agent (404); an archived agent answers 409.
+
+        Args:
+            agent_id: The agent ID.
+            phone_number: The tester's US number, with or without the +.
+            token: Optional bearer token for authentication.
+            headers: Optional extra headers.
+            idempotency_key: Optional idempotency key.
+
+        Returns:
+            The response dictionary whose data is the agent.
+
+        Raises:
+            ValidationError: If agent_id or phone_number is missing.
+        """
+        self._sdk._require({"phoneNumber": phone_number})
+        return self._agent_call(agent_id, f"/testers/{quote(phone_number, safe='')}", "DELETE", token, headers, idempotency_key)
 
     def upload_asset(
         self,
@@ -548,6 +588,8 @@ class RcsMessages:
         Returns:
             Standardized response dict whose data is {requested, enqueued, failed, bulkId, messages} (201).
             A blocked row carries blockReason, reason and issues; an archived template answers 409 TEMPLATE_ARCHIVED.
+            A recipient from 19999990000 to 19999990359 makes the whole request a simulation, as on SMS: data is
+            {simulated: True, webhooks} and nothing is stored, sent or charged.
 
         Raises:
             SignalHouseValidationError: If agent_id or recipients is missing.
@@ -694,7 +736,7 @@ class RcsMessages:
 
         Returns:
             Standardized response dict whose data is {billingClass, segments, recipientCount, rcsLeg, fallbackLeg, totals,
-            balance, issues, warnings}. issues lists what would block the send; warnings what an iPhone draws differently. rcsLeg.mediaSurcharge is the carrier's surcharge on media over 5 MB, already inside rcsLeg.cost; a message over 100 MB adds a MEDIA_TOO_LARGE issue.
+            balance, issues, warnings}. issues lists what would block the send; warnings what an iPhone draws differently. rcsLeg.mediaSurcharge is the carrier's surcharge on media over 5 MB for one recipient, and rcsLeg.cost already holds it for every recipient; rcsLeg.cost is null with the fallback mode sms_only; a message over 100 MB adds a MEDIA_TOO_LARGE issue.
 
         Raises:
             SignalHouseValidationError: If agent_id is missing.
@@ -740,14 +782,60 @@ class RcsMessages:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is {results: [{phoneNumber, capability}]}, capability being ENABLED,
-            UNREACHABLE or UNKNOWN.
+            Standardized response dict whose data is { results: [{ phoneNumber, capability, rcsEnabled, reason, features, carrier, checkedAt, cached }] }, capability being ENABLED, UNREACHABLE or UNKNOWN, and reason CAPABLE, NOT_CAPABLE, NOT_LAUNCHED_ON_CARRIER or UNKNOWN; rcsEnabled is true only for CAPABLE, carrier and checkedAt may be null, and features is empty today.
 
         Raises:
             SignalHouseValidationError: If agent_id or phone_numbers is missing.
         """
         self._sdk._require({"agentId": agent_id, "phoneNumbers": phone_numbers})
         return self._post("/rcs/capabilities", {"agentId": agent_id, "phoneNumbers": phone_numbers}, token, headers, idempotency_key)
+
+    def simulate_inbound(
+        self,
+        agent_id: str,
+        *,
+        from_number: str,
+        event_type: str,
+        text: str | None = None,
+        postback_data: str | None = None,
+        message_id: str | None = None,
+        button_id: str | None = None,
+        latitude: float | None = None,
+        longitude: float | None = None,
+        file_name: str | None = None,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Fake an inbound event from an approved tester of the agent, with no carrier involved: it runs the real inbound handlers and webhooks, as free test traffic. A simulated STOP really opts the tester out; a simulated START clears it. Anyone else gets a 403 with code NOT_TESTER. Returns 202 with { status, messageId }.
+
+        Args:
+            agent_id: The agent (RCSA...).
+            from_number: The approved tester's number; sent as from.
+            event_type: TEXT, SUGGESTION, LOCATION, FILE or UNSUBSCRIBE; sent as type.
+            text: The text; required for TEXT.
+            postback_data: The tapped suggestion's postback; SUGGESTION needs this or button_id.
+            message_id: The message a tap answers; the latest message delivered to the tester by default.
+            button_id: The suggestion's position, as webhooks report it.
+            latitude: Required for LOCATION.
+            longitude: Required for LOCATION.
+            file_name: The file's name, for FILE.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is {status: "QUEUED", messageId}.
+
+        Raises:
+            SignalHouseValidationError: If agent_id, from_number or event_type is missing.
+        """
+        self._sdk._require({"agentId": agent_id, "from": from_number, "type": event_type})
+        fields = {
+            "agentId": agent_id, "from": from_number, "type": event_type, "text": text, "postbackData": postback_data, "messageId": message_id,
+            "buttonId": button_id, "latitude": latitude, "longitude": longitude, "fileName": file_name,
+        }
+        return self._post("/message/rcs/simulate-inbound", fields, token, headers, idempotency_key)
 
     def get(
         self,
@@ -848,6 +936,7 @@ class RcsMessages:
             "deliveredChannel": delivered_channel,
             "isTest": None if is_test is None else str(is_test).lower(),
             "messageType": "RCS",
+            "dateBounds": "exact",
         })
         return self._sdk._request(
             f"/message{query_string}",

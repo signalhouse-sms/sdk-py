@@ -512,7 +512,8 @@ class Numbers:
 
         Returns:
             Standardized response dict resolving to
-            ``{phoneNumber, cnam, autoApply, eligible, ineligibleReason}``.
+            ``{phoneNumber, cnam, autoApply, eligible, ineligibleReason}``. ``cnam.source`` is
+            MANUAL (set on the number), BRAND (the brand's caller name) or AUTO (subgroup auto-apply).
 
         Raises:
             SignalHouseValidationError: If phone_number is missing.
@@ -584,7 +585,9 @@ class Numbers:
     ) -> dict[str, Any]:
         """Remove a phone number's own caller name (CNAM).
 
-        If its subgroup has caller name auto-apply on, the number goes back to the automatic name.
+        The number goes back to its brand's caller name if the brand has one (see
+        ``brands.set_caller_name``), else to the automatic name if its subgroup has caller name
+        auto-apply on.
 
         Roles: api, admin, developer.
 

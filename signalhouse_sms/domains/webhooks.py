@@ -22,6 +22,7 @@ class Webhooks:
         group_id: str | None = None,
         endpoint_type: str | None = None,
         phone_number: str | None = None,
+        agent_id: str | None = None,
         page: int | None = None,
         limit: int | None = None,
         token: str | None = None,
@@ -36,8 +37,9 @@ class Webhooks:
         Args:
             id: Filter by webhook ID.
             group_id: Filter by associated group ID.
-            endpoint_type: Filter by endpoint type (Global, Number).
+            endpoint_type: Filter by endpoint type (Global, Number, Agent).
             phone_number: Filter by associated phone number.
+            agent_id: Filter by RCS agent.
             page: The page number for pagination.
             limit: The number of items per page.
             token: Optional bearer token for authentication.
@@ -52,6 +54,7 @@ class Webhooks:
             "groupId": group_id,
             "endpointType": endpoint_type,
             "phoneNumber": phone_number,
+            "agentId": agent_id,
             "page": page,
             "limit": limit,
         })

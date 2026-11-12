@@ -26,6 +26,9 @@ class Billing:
         transaction_type: str | None = None,
         start_date: str | None = None,
         end_date: str | None = None,
+        category: str | None = None,
+        page: int | None = None,
+        limit: int | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -41,6 +44,9 @@ class Billing:
             transaction_type: The type of transaction to filter by.
             start_date: ISO-8601 date or timestamp; normalized to start-of-UTC-day (inclusive).
             end_date: ISO-8601 date or timestamp; normalized to end-of-UTC-day (inclusive). Hourly resolution is not supported.
+            category: One category, or a comma-separated list: one of the RCS categories RCS_RICH_OUTBOUND, RCS_RICH_MEDIA_OUTBOUND, RCS_INBOUND, RCS_ACTION_CLICK, RCS_MEDIA_SURCHARGE, RCS_FEE_ONBOARDING, RCS_FEE_RENEWAL, RCS_SESSION_ADJUSTMENT or RCS_SESSION_CARRIER_ADJUSTMENT, or RCS_CARRIER_PASSTHROUGH for RCS carrier rows alone. Any other value is rejected with a 400.
+            page: Page number (positive integer).
+            limit: Page size, at most 1000.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -57,6 +63,9 @@ class Billing:
             "transactionType": transaction_type,
             "startDate": start_date,
             "endDate": end_date,
+            "category": category,
+            "page": page,
+            "limit": limit,
         })
         return self._sdk._request(
             f"/billing/wallet/transactionHistory{query_string}",

@@ -55,7 +55,8 @@ class Brands:
         Returns:
             Standardized response dict. Each brand may have ``brandId: null`` until a carrier
             Brand ID is assigned — use ``_id`` for polling. Each brand carries ``carrierSuspensions``
-            (carrier brand suspension rules; active while ``liftedAt`` is null). Each toll-free brand
+            (carrier brand suspension rules; active while ``liftedAt`` is null). Each brand also carries
+            ``cnamName`` (its caller name for numbers, or null; see ``get_caller_name``). Each toll-free brand
             carries ``tollFree.reviewsBusinessOnSubmit`` (whether it's reviewed when it's submitted and
             keeps its business details from then on); when that is True, it also carries the five
             business fields it was submitted with (tollFree's businessStructure, industry, contactEmail,
@@ -614,6 +615,126 @@ class Brands:
             method="POST",
             form_data=form_data,
             files=files_list,
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def get_caller_name(
+        self,
+        brand_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Get a brand's caller name (CNAM) and the numbers it applies to.
+
+        The numbers are every number whose caller name comes from this brand: its campaign numbers,
+        numbers it was picked on, and campaign-less numbers of subgroups that use it as their default
+        caller-ID brand.
+
+        Roles: api, admin, developer, billing, user.
+
+        Args:
+            brand_id: Brand lookup id (carrier Brand ID, record _id, or internal reference).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict resolving to
+            ``{brandId, companyName, cnamName, eligible, numbers: {total, items}}``; ``items`` lists the first 100.
+
+        Raises:
+            SignalHouseValidationError: If brand_id is missing.
+        """
+        self._sdk._require({"brandId": brand_id})
+        safe_brand_id = quote(str(brand_id), safe="")
+        return self._sdk._request(
+            f"/brand/cnam/{safe_brand_id}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def set_caller_name(
+        self,
+        brand_id: str,
+        name: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Set a brand's caller name (CNAM).
+
+        It replaces the caller name on every number whose caller name comes from this brand, names set
+        on a number included, and numbers that later come under the brand get it too. The name may only
+        remove characters from the brand's registered name and must be 1-15 letters, digits, spaces,
+        ``-`` or ``_``; the brand must be verified. Numbers are updated at the carrier in the background.
+
+        Roles: api, admin, developer.
+
+        Args:
+            brand_id: Brand lookup id (carrier Brand ID, record _id, or internal reference).
+            name: The caller name to show.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict resolving to
+            ``{brandId, companyName, cnamName, eligible, numbers: {total, items}}``.
+
+        Raises:
+            SignalHouseValidationError: If brand_id or name is missing.
+        """
+        self._sdk._require({"brandId": brand_id, "name": name})
+        safe_brand_id = quote(str(brand_id), safe="")
+        return self._sdk._request(
+            f"/brand/cnam/{safe_brand_id}",
+            method="PUT",
+            body={"name": name},
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def delete_caller_name(
+        self,
+        brand_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Remove a brand's caller name (CNAM).
+
+        Numbers that had it go back to the automatic name if their subgroup has caller name auto-apply
+        on, otherwise to no caller name. Names set on a number are kept.
+
+        Roles: api, admin, developer.
+
+        Args:
+            brand_id: Brand lookup id (carrier Brand ID, record _id, or internal reference).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict resolving to
+            ``{brandId, companyName, cnamName, eligible, numbers: {total, items}}``.
+
+        Raises:
+            SignalHouseValidationError: If brand_id is missing.
+        """
+        self._sdk._require({"brandId": brand_id})
+        safe_brand_id = quote(str(brand_id), safe="")
+        return self._sdk._request(
+            f"/brand/cnam/{safe_brand_id}",
+            method="DELETE",
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,

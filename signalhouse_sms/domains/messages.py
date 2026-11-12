@@ -187,6 +187,8 @@ class Messages:
 
         Returns:
             Standardized response dict whose data is the message; an unknown ID is a 404.
+            An outbound RCS message and its fallback leg also carry costBreakdown,
+            { legs: [{ messageId, channel, billed, billingClass, segments, baseMicros, carrierMicros, rated }] }, which is None when it cannot be computed.
 
         Raises:
             SignalHouseValidationError: If id is missing.
@@ -195,6 +197,38 @@ class Messages:
         safe_id = quote(str(id), safe="")
         return self._sdk._request(
             f"/message/{safe_id}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def get_message_interactions(
+        self,
+        id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Get the taps on one RCS message, oldest first.
+
+        Args:
+            id: The message ID.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is `{ results }`; an unknown ID is a 404.
+
+        Raises:
+            SignalHouseValidationError: If id is missing.
+        """
+        self._sdk._require({"id": id})
+        safe_id = quote(str(id), safe="")
+        return self._sdk._request(
+            f"/message/{safe_id}/interactions",
             method="GET",
             token=token,
             headers=headers,

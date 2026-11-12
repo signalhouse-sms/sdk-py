@@ -1,6 +1,8 @@
 """Request-contract coverage for the rcs.agents namespace and the registration draft methods."""
 import io
+import json
 from pathlib import Path
+import re
 import sys
 import types
 import unittest
@@ -22,6 +24,7 @@ from signalhouse_sms.domains.rcs import Rcs, RcsAgents, RcsMessages  # noqa: E40
 from signalhouse_sms.exceptions import SignalHouseValidationError  # noqa: E402
 
 AGENT = "RCSA7K2M1QZ8RP"
+FIXTURES = SDK_ROOT.parent / "fixtures" / "rcs" / "requests.json"
 
 
 class CaptureSession:
@@ -90,6 +93,14 @@ class RcsMessageContracts(unittest.TestCase):
         with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
             self.messages.estimate(agent_id="", recipient_count=500)
 
+    def test_simulate_inbound_posts_the_event(self):
+        self.messages.simulate_inbound(AGENT, from_number="+15125550199", event_type="SUGGESTION", postback_data="track_pkg")
+        path, _query, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message/rcs/simulate-inbound", "POST"))
+        self.assertEqual(call["json"], {"agentId": AGENT, "from": "+15125550199", "type": "SUGGESTION", "postbackData": "track_pkg"})
+        with self.assertRaisesRegex(SignalHouseValidationError, "from"):
+            self.messages.simulate_inbound(AGENT, from_number="", event_type="TEXT")
+
     def test_capabilities_posts_the_numbers(self):
         self.messages.capabilities(AGENT, phone_numbers=["+15125550199"])
         path, _, call = self.last()
@@ -120,7 +131,7 @@ class RcsMessageContracts(unittest.TestCase):
                                  "groupId": ["G1"], "status": ["READ"], "page": ["2"], "limit": ["50"],
                                  "templateId": ["T1"], "templateVersion": ["3"], "bulkId": ["B1"],
                                  "fallbackReason": ["NOT_CAPABLE"], "billingClass": ["RICH_MEDIA"],
-                                 "deliveredChannel": ["sms"], "isTest": ["false"], "messageType": ["RCS"]})
+                                 "deliveredChannel": ["sms"], "isTest": ["false"], "messageType": ["RCS"], "dateBounds": ["exact"]})
         with self.assertRaisesRegex(SignalHouseValidationError, "groupId"):
             self.messages.list(group_id=None, from_="2026-11-01", to="2026-11-02", agent_id=AGENT)
         with self.assertRaisesRegex(SignalHouseValidationError, "from"):
@@ -179,6 +190,13 @@ class RcsAgentContracts(unittest.TestCase):
         self.agents.list(status=["DRAFT", "REJECTED"])
         self.assertEqual(self.last()[1], {"status": ["DRAFT", "REJECTED"]})
 
+    def test_remove_tester(self):
+        self.agents.remove_tester(AGENT, phone_number="+15125550199")
+        call = self.session.calls[-1]
+        self.assertEqual((call["method"], call["url"]), ("DELETE", f"https://example.invalid/rcs/agent/{AGENT}/testers/%2B15125550199"))
+        with self.assertRaisesRegex(SignalHouseValidationError, "phoneNumber"):
+            self.agents.remove_tester(AGENT, phone_number="")
+
     def test_resend_tester_invite(self):
         self.agents.resend_tester_invite(AGENT, phone_number="+15125550199")
         call = self.session.calls[-1]
@@ -191,13 +209,14 @@ class RcsAgentContracts(unittest.TestCase):
         self.agents.update(AGENT, campaign_id=None, agent={"description": "Alerts"}, contact={"firstName": "Ada"})
         self.agents.validate(AGENT)
         self.agents.submit(AGENT)
-        self.agents.launch(AGENT)
+        self.agents.launch(AGENT, acknowledge_fees=True)
         self.agents.archive(AGENT)
         self.assertEqual([(c["method"], urlsplit(c["url"]).path) for c in self.session.calls], [
             ("GET", f"/rcs/agent/{AGENT}"), ("PUT", f"/rcs/agent/{AGENT}"), ("POST", f"/rcs/agent/{AGENT}/validate"),
             ("POST", f"/rcs/agent/{AGENT}/submit"), ("POST", f"/registration/{AGENT}/launch"), ("POST", f"/rcs/agent/{AGENT}/archive"),
         ])
         self.assertEqual(self.session.calls[1]["json"], {"campaignId": None, "agent": {"description": "Alerts"}, "contact": {"firstName": "Ada"}})
+        self.assertEqual(self.session.calls[4]["json"], {"acknowledgeFees": True})
         self.agents.get("A/1")
         self.assertEqual(self.session.calls[-1]["url"], "https://example.invalid/rcs/agent/A%2F1")
         with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
@@ -224,7 +243,8 @@ class RcsAgentContracts(unittest.TestCase):
         registrations.update_registration(AGENT, {"useCase": "OTP"})
         registrations.validate_registration(AGENT)
         registrations.submit_registration(AGENT)
-        registrations.launch_registration(AGENT)
+        registrations.launch_registration(AGENT, acknowledge_fees=True, acknowledge_phi=True)
+        self.assertEqual(self.session.calls[-1]["json"], {"acknowledgeFees": True, "acknowledgePhi": True})
         self.assertEqual([(c["method"], urlsplit(c["url"]).path) for c in self.session.calls], [
             ("PUT", f"/registration/{AGENT}"), ("POST", f"/registration/{AGENT}/validate"),
             ("POST", f"/registration/{AGENT}/submit"), ("POST", f"/registration/{AGENT}/launch"),
@@ -234,6 +254,65 @@ class RcsAgentContracts(unittest.TestCase):
         self.assertEqual(self.last()[1], {"type": ["RCS_AGENT"], "brandId": ["BXYZ123"], "campaignId": ["CABC123"]})
         with self.assertRaisesRegex(SignalHouseValidationError, "data"):
             registrations.update_registration(AGENT, None)
+
+
+class TransactionHistoryContracts(unittest.TestCase):
+    def test_forwards_the_category_and_paging(self):
+        sdk = SignalHouseSDK(api_key="test", base_url="https://example.invalid")
+        session = sdk._session = CaptureSession()
+        sdk.billing.get_transaction_history(group_id="G1", category="RCS_INBOUND,RCS_CARRIER_PASSTHROUGH", page=2, limit=1000)
+        parts = urlsplit(session.calls[-1]["url"])
+        self.assertEqual(parts.path, "/billing/wallet/transactionHistory")
+        self.assertEqual(parse_qs(parts.query), {"groupId": ["G1"], "category": ["RCS_INBOUND,RCS_CARRIER_PASSTHROUGH"], "page": ["2"], "limit": ["1000"]})
+
+
+class MessageInteractionContracts(unittest.TestCase):
+    def test_addresses_the_message_and_needs_its_id(self):
+        sdk = SignalHouseSDK(api_key="test", base_url="https://example.invalid")
+        session = sdk._session = CaptureSession()
+        sdk.messages.get_message_interactions("a/b")
+        self.assertEqual(urlsplit(session.calls[-1]["url"]).path, "/message/a%2Fb/interactions")
+        self.assertEqual(session.calls[-1]["method"], "GET")
+        with self.assertRaisesRegex(SignalHouseValidationError, "id"):
+            sdk.messages.get_message_interactions(None)
+
+
+class AgentWebhookContracts(unittest.TestCase):
+    def setUp(self):
+        self.sdk = SignalHouseSDK(api_key="test", base_url="https://example.invalid")
+        self.session = self.sdk._session = CaptureSession()
+
+    def test_filter_by_agent_and_send_the_agent_fields(self):
+        self.sdk.webhooks.get_webhooks(group_id="G1", endpoint_type="Agent", agent_id=AGENT)
+        self.assertEqual(parse_qs(urlsplit(self.session.calls[-1]["url"]).query), {"groupId": ["G1"], "endpointType": ["Agent"], "agentId": [AGENT]})
+        data = {"groupId": "G1", "name": "Support", "endpointType": "Agent", "agentId": AGENT, "url": "https://a.example/rcs", "secondaryUrl": "https://b.example/rcs"}
+        self.sdk.webhooks.create_webhook(data)
+        self.assertEqual(self.session.calls[-1]["json"], data)
+        self.sdk.webhooks.update_webhook("e1", {"secondaryUrl": None})
+        self.assertEqual(self.session.calls[-1]["json"], {"secondaryUrl": None})
+
+
+def python_name(name):
+    """Turn a corpus name into this SDK's: snake case, and from_ for the reserved word."""
+    return "from_" if name == "from" else re.sub(r"[A-Z]", lambda match: "_" + match.group().lower(), name)
+
+
+@unittest.skipUnless(FIXTURES.exists(), "the corpus lives in the monorepo")
+class SharedFixtureCorpus(unittest.TestCase):
+    def test_every_case_produces_its_request(self):
+        sdk = SignalHouseSDK(api_key="test", base_url="https://example.invalid")
+        session = sdk._session = CaptureSession()
+        for case in json.loads(FIXTURES.read_text())["cases"]:
+            with self.subTest(case["name"]):
+                domain, method = case["operation"].split(".")
+                target = sdk.rcs.agents if domain == "agents" else sdk.rcs.messages
+                getattr(target, python_name(method))(**{python_name(key): value for key, value in case["input"].items()})
+                call, request = session.calls[-1], case["request"]
+                parts = urlsplit(call["url"])
+                self.assertEqual(call["method"], request["method"])
+                self.assertEqual(parts.path, request["path"])
+                self.assertEqual({key: values[0] for key, values in parse_qs(parts.query).items()}, request.get("query", {}))
+                self.assertEqual(call.get("json") or {}, request.get("body", {}))
 
 
 if __name__ == "__main__":
