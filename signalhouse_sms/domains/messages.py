@@ -189,6 +189,7 @@ class Messages:
             Standardized response dict whose data is the message; an unknown ID is a 404.
             An outbound RCS message and its fallback leg also carry costBreakdown,
             { legs: [{ messageId, channel, billed, billingClass, segments, baseMicros, carrierMicros, rated }] }, which is None when it cannot be computed.
+            A settled RCS message also carries carrierFeeMicros: the carrier pass-through and media surcharge it was charged.
 
         Raises:
             SignalHouseValidationError: If id is missing.
@@ -862,6 +863,61 @@ class Messages:
         })
         return self._sdk._request(
             f"/message/dnc{query_string}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def get_consent_records(
+        self,
+        *,
+        group_id: str | None = None,
+        recipient_phone_number: str | None = None,
+        start_date: str | None = None,
+        end_date: str | None = None,
+        page: int | None = None,
+        limit: int | None = None,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Export the group's consent ledger, newest first.
+
+        One append-only record per opt-out or opt-in instruction a recipient gave: a STOP or START keyword,
+        or the confirmation of an opt-out link. The ledger records only; sends do not read it.
+
+        Args:
+            group_id: Group ID (required).
+            recipient_phone_number: Filter to one handset, in any spelling; it is matched on its digits.
+            start_date: Filter on occurredAt. A bare date is its whole UTC day; a timestamp is bound as sent.
+            end_date: Filter on occurredAt. A bare date is its whole UTC day; a timestamp is bound as sent.
+            page: Page number (default 1).
+            limit: Records per page (default 100, max 500).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict with ``{ data, total, page, limit }``. Each record carries ``groupId``,
+            ``subgroupId``, ``recipientPhoneNumber`` (the handset, digits), ``phoneNumber`` (the business number,
+            or the RCS agent id, that received the instruction), ``scope`` ``{ type, id }`` (CAMPAIGN, AGENT or
+            SUBGROUP, with that campaign, agent or subgroup id), ``clearedScopes`` (for OPT_IN, every
+            ``{ type, id }`` the START cleared; empty for OPT_OUT), ``action`` (OPT_OUT or OPT_IN), ``source``
+            (KEYWORD or LINK), ``keyword`` ("LINK" for a link), ``messageType`` (SMS, MMS or RCS), ``messageId``
+            (the inbound message id; for a link, the opt-out link's id), ``actor`` ``{ type: "RECIPIENT" }``,
+            ``occurredAt`` and ``createdAt``.
+        """
+        query_string = self._sdk._get_query_string({
+            "groupId": group_id,
+            "recipientPhoneNumber": recipient_phone_number,
+            "startDate": start_date,
+            "endDate": end_date,
+            "page": page,
+            "limit": limit,
+        })
+        return self._sdk._request(
+            f"/message/dnc/consent-records{query_string}",
             method="GET",
             token=token,
             headers=headers,

@@ -28,6 +28,7 @@ from .domains.subscriptions import Subscriptions
 from .domains.templates import Templates
 from .domains.tickets import Tickets
 from .domains.users import Users
+from .domains.verify import Verify
 from .domains.voice import Voice
 from .domains.webhooks import Webhooks
 
@@ -85,6 +86,7 @@ class SignalHouseSDK:
         self.templates = Templates(self)
         self.tickets = Tickets(self)
         self.users = Users(self)
+        self.verify = Verify(self)
         self.voice = Voice(self)
         self.webhooks = Webhooks(self)
 

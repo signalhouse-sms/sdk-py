@@ -77,6 +77,19 @@ class RcsMessageContracts(unittest.TestCase):
         with self.assertRaisesRegex(SignalHouseValidationError, "recipients"):
             self.messages.send(agent_id=AGENT, recipients=None)
 
+    def test_send_batch_posts_the_send_body_to_the_batch_route(self):
+        self.messages.send_batch(agent_id=AGENT, recipients=self.RECIPIENTS, template_id="T1", template_version=2,
+                                 enable_shortlink=False, idempotency_key="k1")
+        path, _, call = self.last()
+        self.assertEqual((path, call["method"]), ("/message/rcs/batch", "POST"))
+        self.assertEqual(call["headers"]["Idempotency-Key"], "k1")
+        self.assertEqual(call["json"], {"agentId": AGENT, "recipients": self.RECIPIENTS, "templateId": "T1",
+                                        "templateVersion": 2, "enableShortlink": False})
+        with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
+            self.messages.send_batch(agent_id="", recipients=self.RECIPIENTS)
+        with self.assertRaisesRegex(SignalHouseValidationError, "recipients"):
+            self.messages.send_batch(agent_id=AGENT, recipients=None)
+
     def test_validate_posts_the_send_body(self):
         self.messages.validate(agent_id=AGENT, recipients=self.RECIPIENTS, template_id="T1", simulate="read")
         path, _, call = self.last()
@@ -204,6 +217,18 @@ class RcsAgentContracts(unittest.TestCase):
         with self.assertRaisesRegex(SignalHouseValidationError, "phoneNumber"):
             self.agents.resend_tester_invite(AGENT, phone_number="")
 
+    def test_create_entry_points_sends_the_opening_message_only_when_given(self):
+        self.agents.create_entry_points(AGENT, body="Hi there")
+        path, _, call = self.last()
+        self.assertEqual((path, call["method"]), (f"/rcs/agent/{AGENT}/entry-points", "POST"))
+        self.assertEqual(call["json"], {"body": "Hi there"})
+        self.agents.create_entry_points("A/1")
+        call = self.session.calls[-1]
+        self.assertEqual(call["url"], "https://example.invalid/rcs/agent/A%2F1/entry-points")
+        self.assertFalse(call.get("json"))
+        with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
+            self.agents.create_entry_points("")
+
     def test_agent_paths_and_partial_update(self):
         self.agents.get(AGENT)
         self.agents.update(AGENT, campaign_id=None, agent={"description": "Alerts"}, contact={"firstName": "Ada"})
@@ -223,6 +248,17 @@ class RcsAgentContracts(unittest.TestCase):
             self.agents.submit("")
         with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
             self.agents.launch("")
+
+    def test_request_carrier_update_and_autofill(self):
+        self.agents.request_carrier_update(AGENT)
+        call = self.session.calls[-1]
+        self.assertEqual((call["method"], call["url"]), ("POST", f"https://example.invalid/registration/{AGENT}/carrier-update"))
+        self.assertIsNone(call.get("json"))
+        autofill = {"consent.optInDetails": {"source": "campaign", "sourceId": "C1", "at": "2026-12-01T15:04:05.000Z", "edited": True}}
+        self.agents.update(AGENT, consent={"optInDetails": "Tick the box"}, autofill=autofill)
+        self.assertEqual(self.session.calls[-1]["json"], {"consent": {"optInDetails": "Tick the box"}, "autofill": autofill})
+        with self.assertRaisesRegex(SignalHouseValidationError, "agentId"):
+            self.agents.request_carrier_update("")
 
     def test_upload_asset_is_multipart_with_kind_and_file(self):
         image = io.BytesIO(b"\x89PNG")

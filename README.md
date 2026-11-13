@@ -94,6 +94,7 @@ The SDK is organized into domain modules matching the SignalHouse API:
 | `sdk.subgroups` | Subgroup management |
 | `sdk.subscriptions` | Subscription management |
 | `sdk.users` | User and service user management |
+| `sdk.verify` | Carrier phone-number checks: SIM Swap and Number Verify (phone on mobile data; each answered check is billed) |
 | `sdk.webhooks` | Webhook management |
 
 ## Admin Methods

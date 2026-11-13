@@ -23,6 +23,7 @@ def _agent_payload(
     excluded_carriers: list[str] | None,
     testers: list[str] | None,
     contact: dict[str, Any] | None = None,
+    autofill: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Build an agent create or update body; None omits a field, except the nullable ones, where _UNSET omits it.
 
@@ -37,6 +38,7 @@ def _agent_payload(
         excluded_carriers: Excluded carriers, or None to leave them out.
         testers: Tester numbers, or None to leave them out.
         contact: The launch contact fields, or None to leave them out.
+        autofill: The prefill markers by field path, or None to leave them out.
 
     Returns:
         The JSON request body.
@@ -49,6 +51,7 @@ def _agent_payload(
         "billingCategory": billing_category,
         "excludedCarriers": excluded_carriers,
         "testers": testers,
+        "autofill": autofill,
     }
     nullable = {"campaignId": campaign_id, "useCase": use_case, "defaultFallback": default_fallback}
     payload = {key: value for key, value in optional.items() if value is not None}
@@ -95,6 +98,7 @@ class RcsAgents:
         default_fallback: dict[str, Any] | None = _UNSET,
         excluded_carriers: list[str] | None = None,
         testers: list[str] | None = None,
+        autofill: dict[str, Any] | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -120,6 +124,8 @@ class RcsAgents:
                 the linked campaign)}.
             excluded_carriers: [] or ["T_MOBILE"] (the carrier partner's carrier name).
             testers: Tester numbers (up to 200), invited once the agent exists at the carrier.
+            autofill: Where the fields you prefilled came from, by path ("consent.optInDetails"): {source (brand,
+                campaign or landing), sourceId, at, edited}. The API adds its own for the fields it fills.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -135,7 +141,7 @@ class RcsAgents:
             "/rcs/agent",
             method="POST",
             body=_agent_payload(brand_id, campaign_id, agent, consent, use_case, billing_category,
-                                default_fallback, excluded_carriers, testers, contact),
+                                default_fallback, excluded_carriers, testers, contact, autofill),
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,
@@ -206,7 +212,8 @@ class RcsAgents:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is the agent.
+            Standardized response dict whose data is the agent; googleAgentId is Google's id for the agent, None until
+            Google has created it.
 
         Raises:
             SignalHouseValidationError: If agent_id is missing.
@@ -227,13 +234,16 @@ class RcsAgents:
         default_fallback: dict[str, Any] | None = _UNSET,
         excluded_carriers: list[str] | None = None,
         testers: list[str] | None = None,
+        autofill: dict[str, Any] | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Edit an agent while it may change: a draft, a Signal House rejection, a request for changes, or an agent in
         testing (the change is pushed to the carrier partner). 409 in any other status; brand_id is locked once the agent
-        exists at the partner and billing_category once a launch was requested.
+        exists at the partner and billing_category once a launch was requested. After a carrier rejected a launch other
+        carriers took (PARTIALLY_LAUNCHED with a REJECTED carrier), only consent and contact may change, and nothing is
+        pushed: send them with request_carrier_update.
 
         agent, consent and contact merge field by field; every other key replaces. Only the fields you pass are sent.
 
@@ -249,6 +259,8 @@ class RcsAgents:
             default_fallback: The fallback; None clears it.
             excluded_carriers: [] or ["T_MOBILE"] (the carrier partner's carrier name).
             testers: Tester numbers.
+            autofill: Replaces the prefill markers; omitted, the stored ones are kept and a changed field's marker
+                turns edited.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -260,7 +272,7 @@ class RcsAgents:
             SignalHouseValidationError: If agent_id is missing.
         """
         body = _agent_payload(brand_id, campaign_id, agent, consent, use_case, billing_category,
-                              default_fallback, excluded_carriers, testers, contact)
+                              default_fallback, excluded_carriers, testers, contact, autofill)
         return self._agent_call(agent_id, "", "PUT", token, headers, idempotency_key, body=body)
 
     def validate(
@@ -280,7 +292,9 @@ class RcsAgents:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is {valid, errors: [{field, reason}], warnings: [{field, reason}]}.
+            Standardized response dict whose data is {valid, errors: [{field, reason, code?}], warnings: [{field, reason}]};
+            a copy-rule error at the launch gate carries the carrier partner's key as code (for example
+            OPT_IN_MSG_RATE_DISCL_MISSING).
 
         Raises:
             SignalHouseValidationError: If agent_id is missing.
@@ -300,6 +314,8 @@ class RcsAgents:
         It needs the full profile, a use case and a billing category; otherwise a 400 whose details carry
         {code: "REGISTRATION_INCOMPLETE", errors, warnings}. The agent moves to AGENT_CREATING, then IN_TESTING once
         the partner reports it ready.
+        A group that has not finished account verification gets a 403 with code GROUP_UNVERIFIED, and a rejected one a
+        403 with code GROUP_REJECTED; a pending verification passes.
 
         Args:
             agent_id: The agent ID.
@@ -330,7 +346,10 @@ class RcsAgents:
         The launch requirements are checked and the agent goes to Signal House review (status PENDING_REVIEW), whose
         approval files the launch with the carrier partner. Allowed from IN_TESTING, REJECTED and CARRIER_REJECTED
         (409 otherwise); a failed requirement is a 400 whose details carry {code: "REGISTRATION_INCOMPLETE", errors,
-        warnings}. Sends POST /registration/{agent_id}/launch: the agent is a registration.
+        warnings}, and a copy-rule error carries the carrier partner's key as its code (for example
+        OPT_IN_MSG_RATE_DISCL_MISSING). A group that has not finished account verification gets a 403 with code
+        GROUP_UNVERIFIED, and a rejected one a 403 with code GROUP_REJECTED. Sends POST /registration/{agent_id}/launch:
+        the agent is a registration.
         The request charges the agent's launch fees: a wallet that cannot cover them gets a 402, and the agent stays where it is. When any fee is due the request must set acknowledge_fees=True, or it gets a 400 with code FEE_ACKNOWLEDGEMENT_REQUIRED and nothing is held; a launch with nothing due needs no acknowledgement. The agent's launchFees quotes what the next request charges.
         When the agent's brand vertical is healthcare or insurance, the launch needs the protected health information (PHI) disclosure acknowledged: send acknowledge_phi=True, or the request gets a 400 REGISTRATION_INCOMPLETE whose errors name consent.phiAcknowledgement. The API records the acknowledgement as consent.phiAcknowledgement {acknowledgedAt, acknowledgedBy} from the caller; the client sends only the boolean, and an agent update cannot set it. Once recorded, a later launch request needs no new acknowledgement.
 
@@ -354,6 +373,43 @@ class RcsAgents:
             f"/registration/{safe_agent_id}/launch",
             method="POST",
             body=_launch_body(acknowledge_fees, acknowledge_phi),
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def request_carrier_update(
+        self,
+        agent_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Send Signal House the corrected launch answers after a carrier rejected a launch other carriers took.
+
+        The carrier partner takes no change through its API once a carrier launched, so Signal House emails it the
+        update; edit consent and contact first. The agent's carrierUpdate reads REQUESTED for the rejected carriers,
+        then SENT once Signal House sent it. 409 when no carrier is REJECTED after a partial launch, or an update
+        already waits. Sends POST /registration/{agent_id}/carrier-update: the agent is a registration.
+
+        Args:
+            agent_id: The agent ID.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is the agent's registration, with data.carrierUpdate.
+
+        Raises:
+            SignalHouseValidationError: If agent_id is missing.
+        """
+        self._sdk._require({"agentId": agent_id})
+        safe_agent_id = quote(str(agent_id), safe="")
+        return self._sdk._request(
+            f"/registration/{safe_agent_id}/carrier-update",
+            method="POST",
             token=token,
             headers=headers,
             idempotency_key=idempotency_key,
@@ -386,6 +442,39 @@ class RcsAgents:
             SignalHouseValidationError: If agent_id is missing.
         """
         return self._agent_call(agent_id, "/archive", "POST", token, headers, idempotency_key)
+
+    def create_entry_points(
+        self,
+        agent_id: str,
+        *,
+        body: str | None = None,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Make the links that start a chat with the agent: an sms: deep link in Google's format, and a short link that
+        redirects to it, to print as a QR code.
+
+        With the agent's defaultFallback.from, the deep link names that number, so a handset that cannot reach the
+        agent texts it instead. The same request returns the same short link. The links work for approved testers
+        until a carrier launches the agent; before Google has created the agent the request answers 409 with code
+        GOOGLE_AGENT_PENDING.
+
+        Args:
+            agent_id: The agent ID.
+            body: The message the chat opens with, prefilled on the handset (max 1,000 characters).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is {googleAgentId, deepLink, shortLink}.
+
+        Raises:
+            SignalHouseValidationError: If agent_id is missing.
+        """
+        payload = None if body is None else {"body": body}
+        return self._agent_call(agent_id, "/entry-points", "POST", token, headers, idempotency_key, body=payload)
 
     def resend_tester_invite(
         self,
@@ -597,6 +686,90 @@ class RcsMessages:
         self._sdk._require({"agentId": agent_id, "recipients": recipients})
         return self._post(
             "/message/rcs",
+            {
+                "agentId": agent_id,
+                "recipients": recipients,
+                "templateId": template_id,
+                "templateVersion": template_version,
+                "content": content,
+                "contentFormat": content_format,
+                "trafficType": traffic_type,
+                "ttlSeconds": ttl_seconds,
+                "expireTime": expire_time,
+                "fallback": fallback,
+                "statusCallbackUrl": status_callback_url,
+                "enableShortlink": enable_shortlink,
+                "isTest": is_test,
+                "simulate": simulate,
+            },
+            token,
+            headers,
+            idempotency_key,
+        )
+
+    def send_batch(
+        self,
+        *,
+        agent_id: str,
+        recipients: list[dict[str, Any]],
+        template_id: str | None = None,
+        template_version: int | None = None,
+        content: dict[str, Any] | None = None,
+        content_format: str | None = None,
+        traffic_type: str | None = None,
+        ttl_seconds: int | None = None,
+        expire_time: str | None = None,
+        fallback: dict[str, Any] | None = None,
+        status_callback_url: str | None = None,
+        enable_shortlink: bool | None = None,
+        is_test: bool | None = None,
+        simulate: str | None = None,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Send an RCS message to up to 10,000 recipients in the background. Takes the same arguments as send.
+
+        The request runs the send's request checks, splits the recipients into chunks of 100, queues each chunk and
+        answers 202. Every message carries the shared bulkId; track progress with the messages list filtered by bulkId
+        (GET /message?bulkId=) and per-message webhooks. A chunk the wallet cannot cover, or that is refused after
+        acceptance, gets BLOCKED messages with blockReason INSUFFICIENT_FUNDS or SEND_REFUSED; a chunk that keeps
+        failing gets SEND_FAILED. Pass idempotency_key to make a retry safe (same bulkId, no duplicate sends); a retry
+        without one may send duplicates.
+
+        Args:
+            agent_id: The agent that sends (RCSA...).
+            recipients: Up to 10,000 recipients {phoneNumber, variables, clientMessageId, metadata}.
+            template_id: A template to send; exactly one of template_id or content.
+            template_version: A published version of template_id; needs template_id. Pinned when the batch is accepted.
+            content: Inline content; exactly one of template_id or content.
+            content_format: content.v1 (default) or google.rcs.
+            traffic_type: AUTHENTICATION, TRANSACTION, SERVICEREQUEST, ACKNOWLEDGEMENT or PROMOTION; required on a
+                MULTI_USE agent when the template sets none.
+            ttl_seconds: Seconds each RCS message may wait for delivery, from when its chunk is sent; at most one of
+                ttl_seconds or expire_time.
+            expire_time: ISO-8601 time the RCS messages expire.
+            fallback: {mode (auto, rcs_only, sms_only), channel (auto, sms, mms), from, content: {text, mediaUrls},
+                validitySeconds}, as on send.
+            status_callback_url: URL that receives each message's status events.
+            enable_shortlink: Shorten the links in the message.
+            is_test: Send as a test; approved testers only.
+            simulate: not_capable, ttl_expired, delivered or read; approved testers only.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict whose data is {bulkId, status: "ACCEPTED", recipientCount} (202).
+            Every message of the batch carries bulkId. A recipient from 19999990000 to 19999990359 makes the whole
+            request a simulation, as on send.
+
+        Raises:
+            SignalHouseValidationError: If agent_id or recipients is missing.
+        """
+        self._sdk._require({"agentId": agent_id, "recipients": recipients})
+        return self._post(
+            "/message/rcs/batch",
             {
                 "agentId": agent_id,
                 "recipients": recipients,
@@ -854,7 +1027,8 @@ class RcsMessages:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is the message; an unknown ID is a 404.
+            Standardized response dict whose data is the message; an unknown ID is a 404. A settled RCS message carries
+            carrierFeeMicros, the carrier pass-through and media surcharge it was charged.
 
         Raises:
             SignalHouseValidationError: If message_id is missing.
@@ -914,7 +1088,7 @@ class RcsMessages:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict.
+            Standardized response dict; a settled RCS message carries carrierFeeMicros.
 
         Raises:
             SignalHouseValidationError: If group_id, from_ or to is missing.

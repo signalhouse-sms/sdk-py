@@ -74,6 +74,22 @@ class RegistrationContracts(unittest.TestCase):
         domain.get_dnc_records(group_id="G1")
         self.assertNotIn("region", parse_qs(urlsplit(self.client.calls[-1][0]).query))
 
+    def test_consent_records_contract(self):
+        """The consent ledger export sends its filters and pagination as a GET."""
+        domain = load_domain("messages").Messages(self.client)
+        domain.get_consent_records(group_id="G1", recipient_phone_number="+15555550100", start_date="2026-12-01",
+                                   end_date="2026-12-31T23:59:59Z", page=2, limit=50, token="test-token")
+        path, request = self.client.calls[-1]
+        self.assertEqual(urlsplit(path).path, "/message/dnc/consent-records")
+        self.assertEqual(parse_qs(urlsplit(path).query), {
+            "groupId": ["G1"], "recipientPhoneNumber": ["+15555550100"], "startDate": ["2026-12-01"],
+            "endDate": ["2026-12-31T23:59:59Z"], "page": ["2"], "limit": ["50"],
+        })
+        self.assertEqual(request["method"], "GET")
+        self.assertEqual(request["token"], "test-token")
+        domain.get_consent_records(group_id="G1")
+        self.assertEqual(parse_qs(urlsplit(self.client.calls[-1][0]).query), {"groupId": ["G1"]})
+
     def test_filter_options_accept_region_only(self):
         domain = load_domain("messages").Messages(self.client)
         domain.get_analytics_filter_options(group_id="G1", region="GB")

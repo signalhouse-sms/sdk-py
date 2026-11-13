@@ -18,6 +18,7 @@ from .subscriptions import Subscriptions
 from .templates import Templates
 from .tickets import Tickets
 from .users import Users
+from .verify import Verify
 from .webhooks import Webhooks
 
 __all__ = [
@@ -39,5 +40,6 @@ __all__ = [
     "Templates",
     "Tickets",
     "Users",
+    "Verify",
     "Webhooks",
 ]
