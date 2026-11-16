@@ -909,7 +909,7 @@ class RcsMessages:
 
         Returns:
             Standardized response dict whose data is {billingClass, segments, recipientCount, rcsLeg, fallbackLeg, totals,
-            balance, issues, warnings}. issues lists what would block the send; warnings what an iPhone draws differently. rcsLeg.mediaSurcharge is the carrier's surcharge on media over 5 MB for one recipient, and rcsLeg.cost already holds it for every recipient; rcsLeg.cost is null with the fallback mode sms_only; a message over 100 MB adds a MEDIA_TOO_LARGE issue.
+            balance, issues, warnings}. issues lists what would block the send; warnings what an iPhone draws differently. rcsLeg.mediaSurcharge is the carrier's surcharge on media over 5 MB for one recipient, and rcsLeg.cost already holds it for every recipient; rcsLeg.cost is null with the fallback mode sms_only; a message over 100 MB adds a MEDIA_TOO_LARGE issue, and an external media URL that redirects adds a MEDIA_REDIRECT issue.
 
         Raises:
             SignalHouseValidationError: If agent_id is missing.

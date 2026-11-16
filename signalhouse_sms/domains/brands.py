@@ -562,6 +562,38 @@ class Brands:
             idempotency_key=idempotency_key,
         )
 
+    def get_brand_feedback(
+        self,
+        brand_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Get TCR's identity feedback for a brand: why TCR could not verify it (status UNVERIFIED).
+
+        Args:
+            brand_id: Brand lookup id (carrier Brand ID, record _id, or internal reference).
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict containing the BrandFeedback object (brandId and a category list with fields and error codes).
+
+        Raises:
+            SignalHouseValidationError: If brand_id is missing.
+        """
+        self._sdk._require({"brandId": brand_id})
+        safe_brand_id = quote(str(brand_id), safe="")
+        return self._sdk._request(
+            f"/brand/feedback/{safe_brand_id}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
     def submit_appeal(
         self,
         brand_id: str,

@@ -304,6 +304,8 @@ class Templates:
 
         A block whose text or image the Moderation API flags is an error with code CONTENT_POLICY_FLAGGED, whose message
         names the category ("Content moderation flagged this text: spam"). The check passes when the Moderation API fails.
+        An image URL with a variable is moderated at send instead, with its value filled in, and a refused image blocks
+        the recipient with MODERATION.
 
         Args:
             template_id: The template ID.
@@ -419,7 +421,8 @@ class Templates:
         """Run publication validation against a candidate body or a stored version without saving anything.
 
         The publish checks run, the content policy check included: a block whose text or image the Moderation API flags is
-        an error with code CONTENT_POLICY_FLAGGED. Saving a draft does not run that check.
+        an error with code CONTENT_POLICY_FLAGGED. An image URL with a variable is moderated at send instead, with its
+        value filled in, and a refused image blocks the recipient with MODERATION. Saving a draft does not run that check.
 
         Args:
             template_id: The template ID.
@@ -541,7 +544,8 @@ class Templates:
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
 
         Returns:
-            Standardized response dict whose data is {mediaId, groupId, url, bytes, mimeType, kind, width, height, createdAt} (201).
+            Standardized response dict whose data is {mediaId, groupId, url, bytes, mimeType, kind, width, height, variants, createdAt} (201).
+            An image over 1920 px or 5,000,000 bytes is stored compressed; variants.mms is the MMS copy of an image over the MMS size limit.
 
         Raises:
             SignalHouseValidationError: If group_id or file is missing.
