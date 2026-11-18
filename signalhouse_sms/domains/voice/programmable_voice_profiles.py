@@ -68,15 +68,19 @@ class ProgrammableVoiceProfiles:
         ``profile_data`` keys (camelCase, as the API expects): ``name`` (required),
         ``subgroupIds`` (required, list of subgroup IDs, at least one), optional
         ``region``, ``routeAction`` (one of ``FORWARD``, ``WEBRTC``, ``SIP_TRUNK``,
-        ``SIP_PROFILE``, ``CALL_CONTROL``; default ``FORWARD``) — deliver the call to
-        a PSTN number (``FORWARD``), ring the profile's subgroup registered softphones
-        (``WEBRTC``), send to a SIP trunk (``SIP_TRUNK``), ring a registered SIP
-        endpoint (``SIP_PROFILE``), or hand the call to an inbound voice webhook /
-        SHML program (``CALL_CONTROL``). Also: ``forwardToE164`` (required when
+        ``SIP_PROFILE``, ``CALL_CONTROL``, ``CALL_FLOW``; default ``FORWARD``) —
+        deliver the call to a PSTN number (``FORWARD``), ring the profile's subgroup
+        registered softphones (``WEBRTC``), send to a SIP trunk (``SIP_TRUNK``), ring a
+        registered SIP endpoint (``SIP_PROFILE``), hand the call to an inbound voice
+        webhook / SHML program (``CALL_CONTROL``), or run a call flow
+        (``CALL_FLOW``). Also: ``forwardToE164`` (required when
         ``routeAction`` is ``FORWARD``), ``routeSipTrunkId`` (required when
         ``routeAction`` is ``SIP_TRUNK``), ``routeSipProfileId`` (required when
         ``routeAction`` is ``SIP_PROFILE``), ``webhookUrl`` (inbound voice webhook /
         SHML program URL; required when ``routeAction`` is ``CALL_CONTROL``),
+        ``routeCallFlowId`` (call flow to run, in one of the profile's subgroups;
+        required when ``routeAction`` is ``CALL_FLOW``, which runs a call flow — see
+        ``sdk.voice.call_flows``),
         ``forwardAfterSeconds``, ``recordingEnabled``, ``enabled``.
         Returns ``{ "profile": {...} }``.
         """
@@ -105,6 +109,9 @@ class ProgrammableVoiceProfiles:
         ``routeSipProfileId`` (required when ``routeAction`` is ``SIP_PROFILE``),
         ``webhookUrl`` (inbound voice webhook / SHML program URL; required when
         ``routeAction`` is ``CALL_CONTROL``; pass ``None`` to clear),
+        ``routeCallFlowId`` (required when ``routeAction`` is ``CALL_FLOW``; must be in
+        one of the profile's subgroups, so narrowing ``subgroupIds`` away from it is
+        refused; pass ``None`` to clear),
         ``forwardAfterSeconds``, ``recordingEnabled``, ``enabled``.
         Returns ``{ "profile": {...} }``."""
         self._sdk._require({"id": id, "updateData": update_data})

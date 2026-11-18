@@ -14,6 +14,7 @@ from .domains.auth import Auth
 from .domains.billing import Billing
 from .domains.brands import Brands
 from .domains.campaigns import Campaigns
+from .domains.compliance import Compliance
 from .domains.groups import Groups
 from .domains.landings import Landings
 from .domains.messages import Messages
@@ -72,6 +73,7 @@ class SignalHouseSDK:
         self.billing = Billing(self)
         self.brands = Brands(self)
         self.campaigns = Campaigns(self)
+        self.compliance = Compliance(self)
         self.groups = Groups(self)
         self.landings = Landings(self)
         self.messages = Messages(self)
@@ -99,6 +101,7 @@ class SignalHouseSDK:
         headers: dict[str, str] | None = None,
         files: dict[str, Any] | None = None,
         idempotency_key: str | None = None,
+        raw: bool = False,
     ) -> dict[str, Any]:
         """Make an HTTP request to the SignalHouse API.
 
@@ -110,13 +113,14 @@ class SignalHouseSDK:
             headers: Additional headers to include in the request.
             files: Files to upload (for multipart requests).
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+            raw: Return a successful response's body as bytes, for a file download.
 
         Returns:
             A standardized response dict with keys: success, data/error, status.
         """
         full_url = f"{self.base_url}{url}"
 
-        req_headers: dict[str, str] = {}
+        req_headers: dict[str, str | None] = {}
         if token:
             req_headers["Authorization"] = f"Bearer {token}"
         if headers:
@@ -126,8 +130,8 @@ class SignalHouseSDK:
 
         try:
             if files is not None:
-                # Multipart request — don't send Content-Type, let requests set it
-                req_headers.pop("Content-Type", None)
+                # None removes the session's JSON Content-Type, so requests sets the multipart boundary
+                req_headers["Content-Type"] = None
                 response = self._session.request(
                     method=method,
                     url=full_url,
@@ -144,6 +148,8 @@ class SignalHouseSDK:
                 )
 
             if 200 <= response.status_code < 300:
+                if raw:
+                    return {"success": True, "data": response.content, "status": response.status_code}
                 try:
                     data = response.json()
                 except (ValueError, requests.exceptions.JSONDecodeError):
@@ -186,11 +192,11 @@ class SignalHouseSDK:
         """
         full_url = f"{self.base_url}{url}"
 
-        req_headers: dict[str, str] = {}
+        req_headers: dict[str, str | None] = {}
         if token:
             req_headers["Authorization"] = f"Bearer {token}"
-        # Remove Content-Type so requests can set multipart boundary
-        req_headers.pop("Content-Type", None)
+        # None removes the session's JSON Content-Type, so requests sets the multipart boundary
+        req_headers["Content-Type"] = None
         if headers:
             req_headers.update(headers)
         if idempotency_key:

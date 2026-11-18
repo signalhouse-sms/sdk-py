@@ -88,6 +88,7 @@ The SDK is organized into domain modules matching the SignalHouse API:
 | `sdk.billing` | Wallets, payment methods, funds, invoices, fees |
 | `sdk.brands` | 10DLC and toll-free brand registration and management |
 | `sdk.campaigns` | 10DLC campaign management |
+| `sdk.compliance` | Compliance cases Signal House opens on your objects: read cases, answer their requirements, upload and download files |
 | `sdk.groups` | Group management |
 | `sdk.landings` | Landing page management (with file uploads) |
 | `sdk.templates` | Versioned message templates: drafts, publish, archive, validate, capabilities, media upload |

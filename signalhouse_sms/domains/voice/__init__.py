@@ -7,6 +7,7 @@ Groups all voice-service sub-resources under a single namespace, accessed via
 * ``sdk.voice.sip_profiles``               — SIP profile / endpoint (single registerable UA).
 * ``sdk.voice.programmable_voice_profiles`` — Programmable Voice Profile (route a set of numbers through Signal House).
 * ``sdk.voice.number_routes``              — Per-number inbound route (overrides the profile and subgroup settings).
+* ``sdk.voice.call_flows``                 — Call flows: customer-built call trees a number or profile can run.
 * ``sdk.voice.calls``                      — Outbound call origination + call log queries.
 * ``sdk.voice.call_logs``                  — Account-scoped call history: list/get + presigned recording.
 * ``sdk.voice.analytics``                  — Aggregated call metrics (summary tiles + byDate/byNumber/byCarrier breakdowns).
@@ -27,6 +28,7 @@ from .call_logs import CallLogs
 from .analytics import Analytics
 from .tokens import Tokens
 from .global_voice_settings import GlobalVoiceSettings
+from .call_flows import CallFlows
 
 if TYPE_CHECKING:
     from ...client import SignalHouseSDK
@@ -46,6 +48,7 @@ class Voice:
         self.analytics = Analytics(sdk)
         self.tokens = Tokens(sdk)
         self.global_voice_settings = GlobalVoiceSettings(sdk)
+        self.call_flows = CallFlows(sdk)
 
 
-__all__ = ["Voice", "SipTrunks", "SipProfiles", "ProgrammableVoiceProfiles", "NumberRoutes","Calls", "CallLogs", "Analytics", "Tokens", "GlobalVoiceSettings"]
+__all__ = ["Voice", "SipTrunks", "SipProfiles", "ProgrammableVoiceProfiles", "NumberRoutes","Calls", "CallLogs", "Analytics", "Tokens", "GlobalVoiceSettings", "CallFlows"]

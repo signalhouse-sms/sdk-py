@@ -58,7 +58,7 @@ class NumberRoutes:
 
         ``route_data`` keys (camelCase, as the API expects): ``routeAction``
         (required; one of ``FORWARD``, ``WEBRTC``, ``SIP_TRUNK``, ``SIP_PROFILE``,
-        ``CALL_CONTROL``, ``AI``, ``VOICEMAIL``), ``forwardToE164`` (required for
+        ``CALL_CONTROL``, ``AI``, ``VOICEMAIL``, ``CALL_FLOW``), ``forwardToE164`` (required for
         ``FORWARD``, or the ``WEBRTC`` no-answer destination when ``noAnswerAction``
         is ``FORWARD``), ``noAnswerAction`` (``WEBRTC`` only: ``VOICEMAIL``,
         ``FORWARD`` or ``KEEP_RINGING``; default ``VOICEMAIL``), ``noAnswerSeconds``
@@ -66,6 +66,9 @@ class NumberRoutes:
         ``SIP_TRUNK``), ``routeSipProfileId`` (required for ``SIP_PROFILE``),
         ``webhookUrl`` (SHML program URL; required for ``CALL_CONTROL``),
         ``routeAgentProfileId`` (AI agent profile id, ``AGP…``; required for ``AI``),
+        ``routeCallFlowId`` (call flow to run, in the number's subgroup; required for
+        ``CALL_FLOW``. It need not be published yet: until it is, calls fall through
+        to the number's profile or subgroup settings, which ``effective`` shows),
         ``recordingEnabled`` (bool).
         Returns ``{ "e164": ..., "route": {...}, "effective": {...} }``."""
         self._sdk._require({"e164": e164, "routeData": route_data})

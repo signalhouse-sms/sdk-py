@@ -5,6 +5,7 @@ from .auth import Auth
 from .billing import Billing
 from .brands import Brands
 from .campaigns import Campaigns
+from .compliance import Compliance
 from .groups import Groups
 from .landings import Landings
 from .messages import Messages
@@ -27,6 +28,7 @@ __all__ = [
     "Billing",
     "Brands",
     "Campaigns",
+    "Compliance",
     "Groups",
     "Landings",
     "Messages",
