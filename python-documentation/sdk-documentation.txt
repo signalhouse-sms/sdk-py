@@ -428,6 +428,29 @@ GROUPS  (signal_house.groups)
     Remove a domain from the group's SSO. Sends a DELETE to
     /group/sso/domains/:domain?groupId=...
 
+  Ontraport integration (roles admin, developer, signalhouse_admin). Each
+  returns {"connected", "webhookUrl", "enabled"}.
+
+  get_ontraport_connection(group_id, *, token=None, headers=None)
+    Read a group's Ontraport connection status; never includes the API Key
+    or App ID. Sends a GET to /group/ontraport?groupId=...
+
+  connect_ontraport(group_id, api_key, app_id, *, token=None, headers=None)
+    Connect or reconnect a group's Ontraport account. The API Key and App ID
+    are verified with Ontraport before being stored. Sends a PUT to
+    /group/ontraport.
+
+  disconnect_ontraport(group_id, *, token=None, headers=None)
+    Disconnect (disable) a group's Ontraport account. The webhook stops
+    accepting deliveries immediately; stored credentials and contact links
+    are kept, so reconnecting resumes cleanly. Sends a DELETE to
+    /group/ontraport?groupId=...
+
+  regenerate_ontraport_webhook_token(group_id, *, token=None, headers=None)
+    Mint a fresh webhook token for an existing connection, immediately
+    invalidating the old URL. Sends a PUT to
+    /group/ontraport/regenerate-token.
+
 
 LANDINGS  (signal_house.landings)
 --------------------------------------------------------------------------------
@@ -521,6 +544,7 @@ MESSAGES  (signal_house.messages)
   carrier_id_lookup(phone_number)
     Look up the carrier for a phone number.
     Always performs a fresh lookup (not cached). Billed per request.
+    An Australian number on ACMA's list of numbers reserved for TV, film and creative works is refused with a 400 as an invalid number, without a lookup or a charge.
     Required: phone_number (10+ digits, no + prefix)
     Returns: { phoneNumber, carrier, carrierFamily, carrierRegion, ported, type, degradedConfidence, cost }
 

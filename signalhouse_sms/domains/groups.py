@@ -418,6 +418,155 @@ class Groups:
             idempotency_key=idempotency_key,
         )
 
+    def get_ontraport_connection(
+        self,
+        group_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Read a group's Ontraport connection status.
+
+        Reports whether it's connected, and the webhook URL to paste into an Ontraport
+        automation's "Send to a Webhook" step. Never includes the API Key or App ID.
+
+        Args:
+            group_id: The group.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict ({"connected": ..., "webhookUrl": ..., "enabled": ...}).
+
+        Raises:
+            SignalHouseValidationError: If group_id is missing.
+        """
+        self._sdk._require({"groupId": group_id})
+        query_string = self._sdk._get_query_string({"groupId": group_id})
+        return self._sdk._request(
+            f"/group/ontraport{query_string}",
+            method="GET",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def connect_ontraport(
+        self,
+        group_id: str,
+        api_key: str,
+        app_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Connect (or reconnect) a group's Ontraport account.
+
+        The API Key and App ID are verified with a read-only call to Ontraport before anything
+        is stored; a bad pair raises rather than saving. Requires a Signal House Admin to have
+        enabled featureFlags.ontraportIntegration for the group first (opt-in, off by default) -
+        otherwise this raises a validation error.
+
+        Args:
+            group_id: The group.
+            api_key: The Ontraport API Key.
+            app_id: The Ontraport App ID.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict ({"connected": ..., "webhookUrl": ..., "enabled": ...}).
+
+        Raises:
+            SignalHouseValidationError: If group_id, api_key, or app_id is missing.
+        """
+        self._sdk._require({"groupId": group_id, "apiKey": api_key, "appId": app_id})
+        return self._sdk._request(
+            "/group/ontraport",
+            method="PUT",
+            body={"groupId": group_id, "apiKey": api_key, "appId": app_id},
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def disconnect_ontraport(
+        self,
+        group_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Disconnect (disable) a group's Ontraport account.
+
+        The webhook stops accepting deliveries immediately; stored credentials
+        and contact links are kept, so reconnecting the same account resumes
+        cleanly. The primary self-service way to kill a leaked webhook URL.
+
+        Args:
+            group_id: The group.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict ({"connected": ..., "webhookUrl": ..., "enabled": ...}).
+
+        Raises:
+            SignalHouseValidationError: If group_id is missing.
+        """
+        self._sdk._require({"groupId": group_id})
+        query_string = self._sdk._get_query_string({"groupId": group_id})
+        return self._sdk._request(
+            f"/group/ontraport{query_string}",
+            method="DELETE",
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
+    def regenerate_ontraport_webhook_token(
+        self,
+        group_id: str,
+        *,
+        token: str | None = None,
+        headers: dict[str, str] | None = None,
+        idempotency_key: str | None = None,
+    ) -> dict[str, Any]:
+        """Mint a fresh webhook token for an existing Ontraport connection.
+
+        Immediately invalidates the old URL. A second self-service way to kill
+        a leaked webhook URL, for when the customer wants to keep sending
+        (unlike disconnect_ontraport) but needs a new URL to paste into a
+        rebuilt automation.
+
+        Args:
+            group_id: The group.
+            token: Optional bearer token for authentication.
+            headers: Additional headers to include in the request.
+            idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
+
+        Returns:
+            Standardized response dict ({"connected": ..., "webhookUrl": ..., "enabled": ...}).
+
+        Raises:
+            SignalHouseValidationError: If group_id is missing.
+        """
+        self._sdk._require({"groupId": group_id})
+        return self._sdk._request(
+            "/group/ontraport/regenerate-token",
+            method="PUT",
+            body={"groupId": group_id},
+            token=token,
+            headers=headers,
+            idempotency_key=idempotency_key,
+        )
+
     def add_sso_domain(
         self,
         group_id: str,
