@@ -194,6 +194,7 @@ class Campaigns:
         limit: int | None = None,
         status: str | None = None,
         registration_type: str | None = None,
+        search: str | list[str] | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -209,6 +210,10 @@ class Campaigns:
             limit: The number of items per page.
             status: The status of the campaign to filter by.
             registration_type: Optional registration-type filter ("TEN_DLC", "TOLL_FREE", or "SHORT_CODE").
+            search: Search terms; a list sends each as its own ``search`` key, and every term must match.
+                With brand_id, subgroup_id or group_id, free text matches campaignId; on the staff-only list
+                (no id, brand_id, subgroup_id or group_id) it matches campaignId and brandId. ``field:term``
+                searches campaignId or brandId. Each term is 3 to 100 characters, at most 5 terms.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -249,6 +254,7 @@ class Campaigns:
             "limit": limit,
             "status": status,
             "registrationType": registration_type,
+            "search": search,
         })
         return self._sdk._request(
             f"/campaign{query_string}",

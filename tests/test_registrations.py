@@ -335,6 +335,40 @@ class ReleasedNumbersFilterContracts(unittest.TestCase):
         self.assertEqual(parse_qs(urlsplit(self.client.calls[-1][0]).query), {"groupId": ["G0000001"]})
 
 
+class SearchFilterContracts(unittest.TestCase):
+    LISTS = (
+        ("subgroups", "Subgroups", "get_subgroups", "/subgroup"),
+        ("brands", "Brands", "get_brands", "/brand"),
+        ("campaigns", "Campaigns", "get_campaigns", "/campaign"),
+        ("numbers", "Numbers", "get_phone_numbers", "/number"),
+    )
+
+    def setUp(self):
+        self.client = CaptureClient()
+
+    def call(self, module, cls, method, **kwargs):
+        """Call a list method with group_id and return the captured path."""
+        getattr(getattr(load_domain(module), cls)(self.client), method)(group_id="G0000001", **kwargs)
+        return self.client.calls[-1][0]
+
+    def test_list_methods_repeat_search_for_a_list(self):
+        """Each search value is sent as its own search key, the colon encoded."""
+        for module, cls, method, expected_path in self.LISTS:
+            with self.subTest(method=method):
+                path = self.call(module, cls, method, search=["apex", "displayName:dental"])
+                self.assertEqual(urlsplit(path).path, expected_path)
+                self.assertIn("search=apex&search=displayName%3Adental", urlsplit(path).query)
+                self.assertEqual(parse_qs(urlsplit(path).query)["search"], ["apex", "displayName:dental"])
+
+    def test_list_methods_send_a_plain_search_string_once(self):
+        """A plain string is one search value; no search is sent when it is omitted."""
+        for module, cls, method, _ in self.LISTS:
+            with self.subTest(method=method):
+                self.assertEqual(parse_qs(urlsplit(self.call(module, cls, method, search="(512) 555")).query),
+                                 {"groupId": ["G0000001"], "search": ["(512) 555"]})
+                self.assertEqual(parse_qs(urlsplit(self.call(module, cls, method)).query), {"groupId": ["G0000001"]})
+
+
 class TollFreeRequirementsContracts(unittest.TestCase):
     def setUp(self):
         self.client = CaptureClient()

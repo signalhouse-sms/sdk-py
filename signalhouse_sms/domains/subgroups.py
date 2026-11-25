@@ -21,6 +21,7 @@ class Subgroups:
         *,
         id: str | None = None,
         group_id: str | None = None,
+        search: str | list[str] | None = None,
         page: int | None = None,
         limit: int | None = None,
         token: str | None = None,
@@ -32,6 +33,9 @@ class Subgroups:
         Args:
             id: Filter by subgroup ID.
             group_id: Filter by parent group ID.
+            search: Search terms; a list sends each as its own ``search`` key, and every term must match.
+                Free text matches subgroupId, subgroupName and subgroupCompanyName; ``field:term`` searches
+                one of those fields. Each term is 3 to 100 characters, at most 5 terms.
             page: The page number for pagination.
             limit: The number of items per page.
             token: Optional bearer token for authentication.
@@ -44,6 +48,7 @@ class Subgroups:
         query_string = self._sdk._get_query_string({
             "id": id,
             "groupId": group_id,
+            "search": search,
             "page": page,
             "limit": limit,
         })
@@ -177,9 +182,9 @@ class Subgroups:
 
         Args:
             subgroup_data: The data for the subgroup. Required fields include groupId and subgroupName.
-                Optional carrier-ID fields include carrierIdFamily and carrierIdRegion. Setting
-                those fields requires signalhouse_api, signalhouse_admin, signalhouse_user, api,
-                admin, developer, or billing role.
+                carrierIdFamily and carrierIdRegion are deprecated: accepted and stored, with no
+                effect on billing. Setting those fields requires signalhouse_api, signalhouse_admin,
+                signalhouse_user, api, admin, developer, or billing role.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -213,9 +218,10 @@ class Subgroups:
 
         Args:
             id: The ID of the subgroup to update.
-            update_data: The data for the subgroup to be updated. Optional carrier-ID fields include
-                carrierIdFamily and carrierIdRegion. Setting those fields requires signalhouse_api,
-                signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
+            update_data: The data for the subgroup to be updated. carrierIdFamily and carrierIdRegion
+                are deprecated: accepted and stored, with no effect on billing. Setting those fields
+                requires signalhouse_api, signalhouse_admin, signalhouse_user, api, admin, developer,
+                or billing role.
                 Optional caller-name (CNAM) fields: cnamAutoApply (bool) turns auto-apply on or
                 off, so eligible numbers get their brand's registered name on outbound calls;
                 cnamBrandId (str or None) is the default caller-ID brand for numbers with no

@@ -200,9 +200,16 @@ BILLING  (signal_house.billing)
 BRANDS  (signal_house.brands)
 --------------------------------------------------------------------------------
   get_brands(*, id=None, subgroup_id=None, group_id=None, page=None,
-      limit=None, status=None, current_toll_free_carrier=None, token=None,
-      headers=None)
+      limit=None, status=None, current_toll_free_carrier=None, search=None,
+      token=None, headers=None)
     List brands with filters.
+    search: a string or a list; a list sends each value as its own search key
+    (?search=apex&search=displayName%3Adental) and every value must match. Free
+    text matches brandId, displayName and companyName; on the staff list (no
+    id, subgroup_id or group_id) it matches all eight fields below. field:term
+    searches one of brandId, displayName, companyName, ein, email, groupId,
+    subgroupId, referenceId. Each term is 3 to 100 characters, at most 5
+    terms; a shorter term returns 400.
     current_toll_free_carrier: with subgroup_id or group_id, True returns only
     toll-free brands that a new toll-free campaign in that group can use
     (those on the group's current toll-free carrier).
@@ -316,9 +323,14 @@ BRANDS  (signal_house.brands)
 CAMPAIGNS  (signal_house.campaigns)
 --------------------------------------------------------------------------------
   get_campaigns(*, id=None, brand_id=None, subgroup_id=None,
-      group_id=None, page=None, limit=None, status=None, token=None,
-      headers=None)
+      group_id=None, page=None, limit=None, status=None, search=None,
+      token=None, headers=None)
     List campaigns with filters.
+    search: a string or a list; a list sends each value as its own search key
+    and every value must match. Free text matches campaignId, or campaignId and
+    brandId on the staff list (no id, brand_id, subgroup_id or group_id).
+    field:term searches campaignId or brandId. Each term is 3 to 100
+    characters, at most 5 terms; a shorter term returns 400.
 
   create_campaign(campaign_data, *, token=None, headers=None)
     Create a new 10DLC campaign.
@@ -494,6 +506,10 @@ MESSAGES  (signal_house.messages)
     carrierMicros, rated }] }, which is null when it cannot be computed.
     A settled RCS message also carries carrierFeeMicros, the carrier
     pass-through and media surcharge it was charged.
+    Inbound messages also carry inReplyToMessageId: the message the reply
+    answers, absent when there is none. If that message has a
+    parentMessageId, it was an RCS fallback, and the parent is the RCS
+    message you sent.
 
   get_message_interactions(id)
     GET /message/:id/interactions. The taps on one RCS message, oldest first. Required: id
@@ -567,8 +583,14 @@ NUMBERS  (signal_house.numbers)
   get_phone_numbers(*, phone_number=None, campaign_id=None,
       registration_id=None, brand_id=None, subgroup_id=None, group_id=None,
       page=None, limit=None, current_toll_free_carrier=None, released=None,
-      token=None, headers=None)
+      search=None, token=None, headers=None)
     List your phone numbers with filters.
+    search: a string or a list; a list sends each value as its own search key
+    and every value must match. Free text matches phoneNumber and
+    friendlyName; field:term searches one of them. A term that reads as a
+    phone number (digits, spaces, + ( ) . -) matches the number's digits, so
+    "(512) 555" finds 15125550100. Each term is 3 to 100 characters, at most 5
+    terms; a shorter term returns 400.
     registration_id: filter to numbers provisioned under this registration.
     current_toll_free_carrier: with subgroup_id or group_id, True returns only
     toll-free numbers that a new toll-free campaign in that group can use
@@ -666,20 +688,24 @@ SHORTLINKS  (signal_house.shortlinks)
 
 SUBGROUPS  (signal_house.subgroups)
 --------------------------------------------------------------------------------
-  get_subgroups(*, id=None, group_id=None, page=None, limit=None,
-      token=None, headers=None)
+  get_subgroups(*, id=None, group_id=None, search=None, page=None,
+      limit=None, token=None, headers=None)
     List subgroups with filters.
+    search: a string or a list; a list sends each value as its own search key
+    and every value must match. Free text matches subgroupId, subgroupName and
+    subgroupCompanyName; field:term searches one of them. Each term is 3 to 100
+    characters, at most 5 terms; a shorter term returns 400.
 
   create_subgroup(subgroup_data, *, token=None, headers=None)
     Create a new subgroup.
-    subgroup_data may include optional carrierIdFamily and carrierIdRegion.
-    Setting carrierIdFamily or carrierIdRegion requires signalhouse_api,
+    subgroup_data may include carrierIdFamily and carrierIdRegion. Deprecated: accepted and
+    stored, with no effect on billing. Setting them requires signalhouse_api,
     signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
 
   update_subgroup(id, update_data, *, token=None, headers=None)
     Update subgroup details.
-    update_data may include optional carrierIdFamily and carrierIdRegion.
-    Setting carrierIdFamily or carrierIdRegion requires signalhouse_api,
+    update_data may include carrierIdFamily and carrierIdRegion. Deprecated: accepted and
+    stored, with no effect on billing. Setting them requires signalhouse_api,
     signalhouse_admin, signalhouse_user, api, admin, developer, or billing role.
     update_data may also include cnamAutoApply (bool) and cnamBrandId (str or
     None) for caller name auto-apply. Setting them requires signalhouse_api,

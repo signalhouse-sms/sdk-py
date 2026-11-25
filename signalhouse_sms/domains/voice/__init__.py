@@ -13,6 +13,8 @@ Groups all voice-service sub-resources under a single namespace, accessed via
 * ``sdk.voice.analytics``                  — Aggregated call metrics (summary tiles + byDate/byNumber/byCarrier breakdowns).
 * ``sdk.voice.tokens``                     — Mint ephemeral SIP credentials for the browser voice SDK.
 * ``sdk.voice.global_voice_settings``      — Account-wide voice defaults (accepted regions, max spend, E911).
+* ``sdk.voice.push_credentials``           — Mobile push: the Apple/Firebase credentials that wake your app for calls.
+* ``sdk.voice.push_devices``               — Mobile push: register a device (called by the app with its voice token).
 """
 
 from __future__ import annotations
@@ -29,6 +31,8 @@ from .analytics import Analytics
 from .tokens import Tokens
 from .global_voice_settings import GlobalVoiceSettings
 from .call_flows import CallFlows
+from .push_credentials import PushCredentials
+from .push_devices import PushDevices
 
 if TYPE_CHECKING:
     from ...client import SignalHouseSDK
@@ -49,6 +53,8 @@ class Voice:
         self.tokens = Tokens(sdk)
         self.global_voice_settings = GlobalVoiceSettings(sdk)
         self.call_flows = CallFlows(sdk)
+        self.push_credentials = PushCredentials(sdk)
+        self.push_devices = PushDevices(sdk)
 
 
-__all__ = ["Voice", "SipTrunks", "SipProfiles", "ProgrammableVoiceProfiles", "NumberRoutes","Calls", "CallLogs", "Analytics", "Tokens", "GlobalVoiceSettings", "CallFlows"]
+__all__ = ["Voice", "SipTrunks", "SipProfiles", "ProgrammableVoiceProfiles", "NumberRoutes","Calls", "CallLogs", "Analytics", "Tokens", "GlobalVoiceSettings", "CallFlows", "PushCredentials", "PushDevices"]

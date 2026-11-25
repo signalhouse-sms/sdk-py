@@ -126,6 +126,8 @@ class Messages:
             Standardized response dict. Inbound messages also carry sentimentScore (-100..100, None
             when unscored), sentimentLabel ("positive"/"neutral"/"negative", None when sentimentScore
             is None) and sentimentScoredAt. Outbound messages are never scored.
+            Inbound messages also carry inReplyToMessageId: the message the reply answers, absent when there is none. If that
+            message has a parentMessageId, it was an RCS fallback, and the parent is the RCS message you sent.
         """
         query_string = self._sdk._get_query_string({
             "id": id,
@@ -190,6 +192,8 @@ class Messages:
             An outbound RCS message and its fallback leg also carry costBreakdown,
             { legs: [{ messageId, channel, billed, billingClass, segments, baseMicros, carrierMicros, rated }] }, which is None when it cannot be computed.
             A settled RCS message also carries carrierFeeMicros: the carrier pass-through and media surcharge it was charged.
+            Inbound messages also carry inReplyToMessageId: the message the reply answers, absent when there is none. If that
+            message has a parentMessageId, it was an RCS fallback, and the parent is the RCS message you sent.
 
         Raises:
             SignalHouseValidationError: If id is missing.
@@ -1012,6 +1016,8 @@ class Messages:
     ) -> dict[str, Any]:
         """Send a P2P message via Rogue Mobile SMPP.
 
+        Deprecated: P2P messaging is retired and the API answers 410. This method will be removed in a future major release.
+
         Args:
             recipient_phone_numbers: The phone number(s) to send the message to.
             message_body: The body of the P2P message.
@@ -1069,6 +1075,8 @@ class Messages:
         idempotency_key: str | None = None,
     ) -> dict[str, Any]:
         """Get the details of a P2P batch by its ID.
+
+        Deprecated: P2P messaging is retired and the API answers 410. This method will be removed in a future major release.
 
         Args:
             batch_id: The ID of the P2P batch to retrieve.

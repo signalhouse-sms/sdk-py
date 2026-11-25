@@ -45,7 +45,9 @@ class Tokens:
         ``"anonymous"``), ``ttl`` (seconds, clamped to the server's max;
         defaults to ``VOICE_TOKEN_DEFAULT_TTL_SEC``), ``grants`` (capability
         grants — ``{"voice": {"incoming": {"allow": bool}, "outgoing":
-        {"allowedNumbers": [...]}}}``).
+        {"allowedNumbers": [...]}}}``), ``subgroupId`` (the subgroup whose
+        inbound calls ring this identity; required to receive calls and to
+        register the device for mobile push).
 
         Returns ``{ token, identity, expires_at, sip_credentials: { username,
         password, domain, wss_url } }``. The plaintext SIP password is sent

@@ -31,6 +31,7 @@ class Brands:
         status: str | None = None,
         registration_type: str | None = None,
         current_toll_free_carrier: bool | None = None,
+        search: str | list[str] | None = None,
         token: str | None = None,
         headers: dict[str, str] | None = None,
         idempotency_key: str | None = None,
@@ -48,6 +49,11 @@ class Brands:
             registration_type: Optional registration-type filter ("TEN_DLC", "TOLL_FREE", or "SHORT_CODE").
             current_toll_free_carrier: With subgroup_id or group_id: when True, return only toll-free brands that a new
                     toll-free campaign in that group can use (those on the group's current toll-free carrier).
+            search: Search terms; a list sends each as its own ``search`` key, and every term must match.
+                    With subgroup_id or group_id, free text matches brandId, displayName and companyName; on the
+                    staff-only list (no id, subgroup_id or group_id) it matches all eight fields below.
+                    ``field:term`` searches one of brandId, displayName, companyName, ein, email, groupId,
+                    subgroupId, referenceId. Each term is 3 to 100 characters, at most 5 terms.
             token: Optional bearer token for authentication.
             headers: Additional headers to include in the request.
             idempotency_key: Sent as the Idempotency-Key header; a retry with the same key and request replays the first response.
@@ -73,6 +79,7 @@ class Brands:
             "registrationType": registration_type,
             # urlencode would send Python's "True"; the API expects "true"/"false".
             "currentTollFreeCarrier": None if current_toll_free_carrier is None else str(current_toll_free_carrier).lower(),
+            "search": search,
         })
         return self._sdk._request(
             f"/brand{query_string}",

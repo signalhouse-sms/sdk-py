@@ -1029,6 +1029,7 @@ class RcsMessages:
         Returns:
             Standardized response dict whose data is the message; an unknown ID is a 404. A settled RCS message carries
             carrierFeeMicros, the carrier pass-through and media surcharge it was charged.
+            An inbound RCS message also carries inReplyToMessageId: the message it answers, absent when there is none.
 
         Raises:
             SignalHouseValidationError: If message_id is missing.
