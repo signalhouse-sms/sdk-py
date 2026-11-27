@@ -427,6 +427,9 @@ class Campaigns:
         registrationType is forced to TOLL_FREE server-side; TFN-specific fields live under
         ``campaign_data["tollFree"]`` (useCase, messageVolume, programSummary, exampleMessage,
         customerCareEmail, optInImageURLs, optional optIns / multiNumberReason / useCases / channels / landingId).
+        privacyPolicyLink is required when the brand's tollFree.requiresPrivacyPolicy is true and neither the brand
+        nor the referenced Toll-Free landing page (tollFree.landingId) supplies one; termsAndConditionsLink likewise for
+        tollFree.requiresTermsAndConditions. Precedence: campaign, brand, landing page.
 
         Args:
             campaign_data: The data for the toll-free campaign to be created (see API docs for
